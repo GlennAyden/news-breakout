@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from news_breakout.models import BreakoutSignal, TickerAlert
+from news_breakout.news.models import Disclosure
 
 
 def _rupiah(value: float) -> str:
     """Format a number with '.' as thousands separator (Indonesian style)."""
     return f"{value:,.0f}".replace(",", ".")
+
+
+def _time_ago(ts: datetime, now: datetime) -> str:
+    seconds = (now - ts).total_seconds()
+    if seconds < 3600:
+        return f"{int(seconds // 60)} menit lalu"
+    if seconds < 86400:
+        return f"{int(seconds // 3600)} jam lalu"
+    return f"{int(seconds // 86400)} hari lalu"
 
 
 def format_breakout(sig: BreakoutSignal) -> str:
@@ -27,10 +39,11 @@ _SIGNAL_LABEL = {
 }
 
 
-def format_ticker_alert(alert: TickerAlert) -> str:
+def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None) -> str:
     price = alert.signals[0].price
+    marker = "🔥" if catalyst is not None else "🚨"
     lines = [
-        f"🚨 BREAKOUT — {alert.ticker}  ⭐{alert.priority:.0f}",
+        f"{marker} BREAKOUT — {alert.ticker}  ⭐{alert.priority:.0f}",
         "━━━━━━━━━━━━━━━━━━━",
         f"Harga : {_rupiah(price)}",
     ]
@@ -39,6 +52,10 @@ def format_ticker_alert(alert: TickerAlert) -> str:
         label = _SIGNAL_LABEL.get(s.signal_type, s.signal_type)
         lines.append(
             f"• TF {s.timeframe}: {label} · level {_rupiah(s.level)} · RVOL {s.rvol:.1f}× {arrow}"
+        )
+    if catalyst is not None:
+        lines.append(
+            f"📰 Katalis: {catalyst.title} ({_time_ago(catalyst.timestamp, alert.timestamp)})"
         )
     lines.append(f"⏱️ {alert.timestamp:%H:%M} WIB · delay data ~15 mnt")
     return "\n".join(lines)

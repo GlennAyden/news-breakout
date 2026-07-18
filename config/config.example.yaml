@@ -72,3 +72,5 @@ news:
     - pemegang saham
   disclosure_page_size: 50
   news_poll_interval_minutes: 60
+  booster_window_hours: 48
+  priority_boost: 3.0

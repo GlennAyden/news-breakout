@@ -6,6 +6,7 @@ import pandas as pd
 from tests.fixtures import make_ohlcv
 from news_breakout.config import Settings
 from news_breakout.alerts.dedup import DedupStore
+from news_breakout.news.models import Disclosure
 import run
 
 WIB = ZoneInfo("Asia/Jakarta")
@@ -117,6 +118,81 @@ def test_run_scan_uses_injected_fetchers():
     )
     assert result == ["ANTM"]
     assert len(sent) == 1
+    store.close()
+
+
+def test_scan_once_attaches_catalyst_and_boosts_priority():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    catalyst = Disclosure(
+        ticker="ANTM", title="Rights Issue", timestamp=NOW,
+        disclosure_id="1", url="https://example.com",
+    )
+    result = run.scan_once(_settings(), _breakout_daily(), {}, store, now=NOW,
+                           sender=sender, catalysts={"ANTM": catalyst})
+    assert result == ["ANTM"]
+    assert len(sent) == 1
+    assert "🔥" in sent[0]
+    assert "Katalis" in sent[0]
+    assert "Rights Issue" in sent[0]
+    # _breakout_daily() triggers both a resistance and a wyckoff signal on 1D
+    # (base priority 6.0) + news_priority_boost default 3.0 = 9
+    assert "⭐9" in sent[0]
+    store.close()
+
+
+def test_run_scan_attaches_catalysts_from_disclosure_fetcher():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    daily = _breakout_daily()
+    disc = [Disclosure(ticker="ANTM", title="Rights Issue", timestamp=NOW,
+                       disclosure_id="1", url="https://example.com")]
+    result = run.run_scan(
+        _settings(), store, now=NOW, sender=sender,
+        daily_fetcher=lambda tickers, days: daily,
+        intraday_fetcher=lambda tickers, days: {},
+        disclosure_fetcher=lambda page_size, *, now, proxy: disc,
+    )
+    assert result == ["ANTM"]
+    assert len(sent) == 1
+    assert "🔥" in sent[0]
+    assert "Katalis" in sent[0]
+    store.close()
+
+
+def test_run_scan_tolerates_disclosure_fetch_failure():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    daily = _breakout_daily()
+
+    def failing_disclosure_fetcher(page_size, *, now, proxy):
+        raise RuntimeError("IDX unreachable")
+
+    result = run.run_scan(
+        _settings(), store, now=NOW, sender=sender,
+        daily_fetcher=lambda tickers, days: daily,
+        intraday_fetcher=lambda tickers, days: {},
+        disclosure_fetcher=failing_disclosure_fetcher,
+    )
+    assert result == ["ANTM"]
+    assert len(sent) == 1
+    assert "🚨" in sent[0]
+    assert "🔥" not in sent[0]
     store.close()
 
 

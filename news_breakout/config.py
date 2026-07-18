@@ -32,6 +32,8 @@ class Settings(BaseModel):
     disclosure_page_size: int
     news_poll_interval_minutes: int
     idx_proxy: str
+    news_booster_window_hours: int = 48
+    news_priority_boost: float = 3.0
 
 
 def _load_env_file(env_path: str) -> None:
@@ -83,4 +85,6 @@ def load_settings(
         disclosure_page_size=news["disclosure_page_size"],
         news_poll_interval_minutes=news["news_poll_interval_minutes"],
         idx_proxy=os.environ.get("IDX_PROXY", ""),
+        news_booster_window_hours=news.get("booster_window_hours", 48),
+        news_priority_boost=news.get("priority_boost", 3.0),
     )
