@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from news_breakout.models import BreakoutSignal
+from news_breakout.models import BreakoutSignal, TickerAlert
 
 
 def _rupiah(value: float) -> str:
@@ -19,3 +19,26 @@ def format_breakout(sig: BreakoutSignal) -> str:
         f"Volume : RVOL {sig.rvol:.1f}× {arrow}\n"
         f"⏱️ {sig.timestamp:%H:%M} WIB · delay data ~15 mnt"
     )
+
+
+_SIGNAL_LABEL = {
+    "resistance_breakout": "Resistance breakout (new high)",
+    "wyckoff_range_breakout": "Wyckoff range breakout",
+}
+
+
+def format_ticker_alert(alert: TickerAlert) -> str:
+    price = alert.signals[0].price
+    lines = [
+        f"🚨 BREAKOUT — {alert.ticker}  ⭐{alert.priority:.0f}",
+        "━━━━━━━━━━━━━━━━━━━",
+        f"Harga : {_rupiah(price)}",
+    ]
+    for s in alert.signals:
+        arrow = "🟢" if s.rvol >= 2.0 else "🟡"
+        label = _SIGNAL_LABEL.get(s.signal_type, s.signal_type)
+        lines.append(
+            f"• TF {s.timeframe}: {label} · level {_rupiah(s.level)} · RVOL {s.rvol:.1f}× {arrow}"
+        )
+    lines.append(f"⏱️ {alert.timestamp:%H:%M} WIB · delay data ~15 mnt")
+    return "\n".join(lines)
