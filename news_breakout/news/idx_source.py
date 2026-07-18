@@ -1,12 +1,26 @@
 from __future__ import annotations
 
+import json
+import logging
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from news_breakout.news.models import Disclosure
 
+logger = logging.getLogger("news_breakout")
+
 WIB = ZoneInfo("Asia/Jakarta")
 _DISCLOSURE_URL = "https://www.idx.co.id/en/listed-companies/disclosure/"
+
+_API = ("https://www.idx.co.id/primary/ListedCompany/GetAnnouncement"
+        "?emitenType=s&indexFrom=1&pageSize={page_size}&dateFrom=&dateTo=&lang=id&keyword=")
+_PAGE = "https://www.idx.co.id/en/listed-companies/disclosure/"
+_HEADERS = {
+    "Referer": _PAGE,
+    "Accept": "application/json, text/plain, */*",
+    "X-Requested-With": "XMLHttpRequest",
+}
 
 
 def _first(record: dict, keys: list[str]) -> str:
@@ -41,3 +55,37 @@ def parse_disclosures(data: dict, *, now: datetime) -> list[Disclosure]:
             url=_DISCLOSURE_URL,
         ))
     return out
+
+
+def _default_http_get(url: str, proxy: str) -> str:
+    from curl_cffi import requests as creq
+
+    kwargs = {"impersonate": "chrome120"}
+    if proxy:
+        kwargs["proxies"] = {"http": proxy, "https": proxy}
+    session = creq.Session(**kwargs)
+    try:
+        session.get(_PAGE, headers=_HEADERS, timeout=30)  # warm up Cloudflare cookies
+    except Exception:  # noqa: BLE001
+        pass
+    return session.get(url, headers=_HEADERS, timeout=30).text
+
+
+def fetch_disclosures(page_size: int = 50, *, now, proxy: str = "", retries: int = 3,
+                      http_get=None, sleeper=time.sleep) -> list[Disclosure]:
+    if http_get is None:
+        http_get = _default_http_get
+    url = _API.format(page_size=page_size)
+    _RETRY_DELAYS = [5, 15, 30]
+    for attempt in range(retries + 1):
+        try:
+            text = http_get(url, proxy)
+            data = json.loads(text)
+        except Exception:  # noqa: BLE001 — Cloudflare HTML / network / decode failure
+            data = None
+        if isinstance(data, dict) and data.get("Replies") is not None:
+            return parse_disclosures(data, now=now)
+        if attempt < retries:
+            sleeper(_RETRY_DELAYS[min(attempt, len(_RETRY_DELAYS) - 1)])
+    logger.warning("IDX disclosure fetch failed after %d attempts (Cloudflare/block?)", retries + 1)
+    return []
