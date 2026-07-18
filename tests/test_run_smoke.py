@@ -52,3 +52,22 @@ def test_scan_once_alerts_then_dedups():
     assert second == []
     assert len(sent) == 1
     store.close()
+
+
+def test_failed_send_is_not_marked_and_retries():
+    store = DedupStore(":memory:")
+    calls = []
+
+    def failing_sender(bot_token, chat_id, text, *, dry_run, client=None):
+        calls.append("fail")
+        return False
+
+    def ok_sender(bot_token, chat_id, text, *, dry_run, client=None):
+        calls.append("ok")
+        return True
+
+    first = run.scan_once(_settings(), _breakout_data(), store, now=NOW, sender=failing_sender)
+    assert first == []                       # nothing counted as alerted
+    retry = run.scan_once(_settings(), _breakout_data(), store, now=NOW, sender=ok_sender)
+    assert retry == ["ANTM"]                 # not deduped, retried successfully
+    store.close()

@@ -16,7 +16,6 @@ WIB = ZoneInfo("Asia/Jakarta")
 
 def scan_once(settings: Settings, data, store: DedupStore, *, now, sender=send_message) -> list[str]:
     alerted: list[str] = []
-    date_str = now.strftime("%Y-%m-%d")
     for ticker, df in data.items():
         sig = evaluate_daily(
             ticker,
@@ -28,15 +27,19 @@ def scan_once(settings: Settings, data, store: DedupStore, *, now, sender=send_m
         )
         if sig is None:
             continue
+        # Dedup key uses the trading date of the latest bar, not wall-clock scan time.
+        date_str = df.index[-1].strftime("%Y-%m-%d")
         if store.already_sent(sig.ticker, sig.signal_type, sig.timeframe, date_str):
             continue
         text = format_breakout(sig)
-        sender(
+        sent_ok = sender(
             settings.telegram_bot_token,
             settings.telegram_breakout_chat_id,
             text,
             dry_run=settings.dry_run,
         )
+        if not sent_ok:
+            continue  # delivery failed: don't mark sent, allow retry next scan
         store.mark_sent(sig.ticker, sig.signal_type, sig.timeframe, date_str)
         alerted.append(sig.ticker)
     return alerted
