@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from news_breakout.models import BreakoutSignal
+from news_breakout.models import BreakoutSignal, TickerAlert
 from news_breakout.signals.breakout import detect_donchian_breakout
 from news_breakout.signals.volume import compute_rvol
 from news_breakout.signals.wyckoff import detect_range_breakout
@@ -82,3 +82,29 @@ def evaluate_daily(
     return _resistance_signal(
         ticker, df, "1D", donchian_lookback=lookback, rvol=rvol, now=now
     )
+
+
+TF_WEIGHT = {"1D": 3.0, "4H": 2.0, "1H": 1.0}
+_TF_ORDER = ["1D", "4H", "1H"]
+
+
+def evaluate_ticker(
+    ticker: str, frames: dict[str, pd.DataFrame], *,
+    donchian_lookback: int, rvol_window: int, rvol_threshold: float,
+    range_lookback: int, range_max_width_pct: float, now: datetime,
+) -> TickerAlert | None:
+    signals: list[BreakoutSignal] = []
+    for tf in _TF_ORDER:
+        df = frames.get(tf)
+        if df is None:
+            continue
+        signals.extend(evaluate_timeframe(
+            ticker, df, tf,
+            donchian_lookback=donchian_lookback, rvol_window=rvol_window,
+            rvol_threshold=rvol_threshold, range_lookback=range_lookback,
+            range_max_width_pct=range_max_width_pct, now=now,
+        ))
+    if not signals:
+        return None
+    priority = sum(TF_WEIGHT[s.timeframe] for s in signals)
+    return TickerAlert(ticker=ticker, signals=signals, priority=priority, timestamp=now)

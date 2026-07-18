@@ -14,3 +14,15 @@ class BreakoutSignal:
     level: float
     rvol: float
     timestamp: datetime
+
+
+@dataclass
+class TickerAlert:
+    ticker: str
+    signals: list["BreakoutSignal"]
+    priority: float
+    timestamp: datetime
+
+    @property
+    def max_rvol(self) -> float:
+        return max(s.rvol for s in self.signals)
