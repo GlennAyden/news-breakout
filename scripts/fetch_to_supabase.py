@@ -62,6 +62,11 @@ def fetch_all(watchlist: list, history_days: int, intraday_days: int, downloader
             sub = sub[[c for c in _COLUMNS if c in sub.columns]].dropna(how="all")
             if sub.empty:
                 continue
+            # yfinance's still-forming last intraday bar can repeat a
+            # timestamp; a duplicate (ticker, interval, ts) in the upsert
+            # batch makes PostgREST's ON CONFLICT DO UPDATE raise "cannot
+            # affect row a second time". Keep the latest observation.
+            sub = sub[~sub.index.duplicated(keep="last")]
             all_rows.extend(to_rows(sub[_COLUMNS], t, store_iv))
     return all_rows
 

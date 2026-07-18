@@ -57,6 +57,32 @@ def test_fetch_all_covers_both_intervals():
     assert {r["ticker"] for r in rows} == {"ANTM", "BUMI"}
 
 
+def test_fetch_all_dedupes_duplicate_timestamps():
+    def fake_downloader(jk, **kw):
+        # yfinance's still-forming last bar can repeat a timestamp.
+        idx = pd.to_datetime(
+            ["2026-07-17 09:00", "2026-07-17 10:00", "2026-07-17 10:00"]
+        ).tz_localize("Asia/Jakarta")
+        frames = {}
+        for sym in jk:
+            f = pd.DataFrame(
+                {"Open": [1.0, 2.0, 2.5], "High": [2.0, 3.0, 3.5], "Low": [1.0, 2.0, 2.5],
+                 "Close": [2.0, 3.0, 3.5], "Volume": [10, 20, 25]}, index=idx)
+            f.columns = pd.MultiIndex.from_product([[sym], f.columns])
+            frames[sym] = f
+        return pd.concat(frames.values(), axis=1)
+
+    rows = fts.fetch_all(["ANTM"], 120, 60, fake_downloader)
+    daily_rows = [r for r in rows if r["ticker"] == "ANTM" and r["interval"] == "1d"]
+    ts_list = [r["ts"] for r in daily_rows]
+
+    assert len(ts_list) == len(set(ts_list))
+    # the kept row for the duplicated timestamp must be the last one (Close 3.5)
+    dup_ts = max(ts_list)
+    dup_row = next(r for r in daily_rows if r["ts"] == dup_ts)
+    assert dup_row["close"] == 3.5
+
+
 def test_upsert_chunks_and_sets_merge_header():
     sent = []
 
