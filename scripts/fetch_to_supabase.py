@@ -18,7 +18,8 @@ _CHUNK = 500
 
 
 def load_config(path: str = _CONFIG):
-    raw = yaml.safe_load(open(path, encoding="utf-8"))
+    with open(path, encoding="utf-8") as fh:
+        raw = yaml.safe_load(fh)
     data = raw.get("data", {})
     return raw["watchlist"], data["history_days"], data["intraday_period_days"]
 
@@ -65,7 +66,8 @@ def fetch_all(watchlist: list, history_days: int, intraday_days: int, downloader
     return all_rows
 
 
-def upsert(rows: list, url: str, key: str, *, poster=None) -> None:
+def upsert(rows: list, url: str, key: str, *, poster=None) -> bool:
+    """Upsert rows in chunks; return True iff every chunk returned 2xx."""
     if poster is None:
         import httpx
 
@@ -76,10 +78,13 @@ def upsert(rows: list, url: str, key: str, *, poster=None) -> None:
         "apikey": key, "Authorization": f"Bearer {key}",
         "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates",
     }
+    ok = True
     for i in range(0, len(rows), _CHUNK):
         status = poster(endpoint, headers, rows[i:i + _CHUNK])
         if status not in (200, 201, 204):
+            ok = False
             print(f"WARNING: upsert chunk {i}-{i + _CHUNK} returned HTTP {status}", file=sys.stderr)
+    return ok
 
 
 def main() -> None:
@@ -93,7 +98,9 @@ def main() -> None:
     if not rows:
         print("ERROR: 0 bars fetched — aborting upsert (likely a Yahoo outage)", file=sys.stderr)
         sys.exit(1)
-    upsert(rows, url, key)
+    if not upsert(rows, url, key):
+        print("ERROR: one or more upsert chunks failed — see warnings above", file=sys.stderr)
+        sys.exit(1)
     print("upsert complete")
 
 

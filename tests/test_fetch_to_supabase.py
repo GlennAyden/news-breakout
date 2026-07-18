@@ -66,8 +66,17 @@ def test_upsert_chunks_and_sets_merge_header():
 
     rows = [{"ticker": "ANTM", "interval": "1d", "ts": "x", "open": 1, "high": 1,
              "low": 1, "close": 1, "volume": 1} for _ in range(1200)]
-    fts.upsert(rows, "https://proj.supabase.co", "svc", poster=poster)
+    assert fts.upsert(rows, "https://proj.supabase.co", "svc", poster=poster) is True
     assert sent[0][0] == "https://proj.supabase.co/rest/v1/price_bars"
     assert sent[0][1]["Prefer"] == "resolution=merge-duplicates"
     assert sent[0][1]["Authorization"] == "Bearer svc"
     assert [n for _, _, n in sent] == [500, 500, 200]  # chunked by 500
+
+
+def test_upsert_returns_false_on_non_2xx():
+    def poster(url, headers, json):
+        return 500
+
+    rows = [{"ticker": "ANTM", "interval": "1d", "ts": "x", "open": 1, "high": 1,
+             "low": 1, "close": 1, "volume": 1}]
+    assert fts.upsert(rows, "https://p.supabase.co", "svc", poster=poster) is False
