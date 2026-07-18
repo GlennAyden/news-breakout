@@ -115,6 +115,7 @@ def test_run_scan_uses_injected_fetchers():
         _settings(), store, now=NOW, sender=sender,
         daily_fetcher=lambda tickers, days: daily,
         intraday_fetcher=lambda tickers, days: {},
+        disclosure_fetcher=lambda page_size, *, now, proxy, retries=0: [],
     )
     assert result == ["ANTM"]
     assert len(sent) == 1
@@ -161,7 +162,7 @@ def test_run_scan_attaches_catalysts_from_disclosure_fetcher():
         _settings(), store, now=NOW, sender=sender,
         daily_fetcher=lambda tickers, days: daily,
         intraday_fetcher=lambda tickers, days: {},
-        disclosure_fetcher=lambda page_size, *, now, proxy: disc,
+        disclosure_fetcher=lambda page_size, *, now, proxy, retries=0: disc,
     )
     assert result == ["ANTM"]
     assert len(sent) == 1
@@ -180,7 +181,7 @@ def test_run_scan_tolerates_disclosure_fetch_failure():
 
     daily = _breakout_daily()
 
-    def failing_disclosure_fetcher(page_size, *, now, proxy):
+    def failing_disclosure_fetcher(page_size, *, now, proxy, retries=0):
         raise RuntimeError("IDX unreachable")
 
     result = run.run_scan(
@@ -201,7 +202,8 @@ def test_run_scan_warns_when_no_data(caplog):
     store = DedupStore(":memory:")
     with caplog.at_level(logging.WARNING):
         result = run.run_scan(_settings(), store, now=NOW, sender=lambda *a, **k: True,
-                              daily_fetcher=lambda t, d: {}, intraday_fetcher=lambda t, d: {})
+                              daily_fetcher=lambda t, d: {}, intraday_fetcher=lambda t, d: {},
+                              disclosure_fetcher=lambda page_size, *, now, proxy, retries=0: [])
     assert result == []
     assert any("0 tickers" in r.message for r in caplog.records)
     store.close()

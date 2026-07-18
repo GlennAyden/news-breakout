@@ -78,7 +78,8 @@ def run_scan(
             len(settings.watchlist),
         )
     try:
-        disc = disclosure_fetcher(settings.disclosure_page_size, now=now, proxy=settings.idx_proxy)
+        disc = disclosure_fetcher(settings.disclosure_page_size, now=now,
+                                  proxy=settings.idx_proxy, retries=0)
     except Exception:  # noqa: BLE001
         disc = []
     catalysts = recent_by_ticker(disc, now=now, window_hours=settings.news_booster_window_hours)
