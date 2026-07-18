@@ -9,7 +9,6 @@ NOW = datetime(2026, 7, 17, 16, 0, tzinfo=WIB)
 
 PARAMS = dict(
     donchian_lookback=3, rvol_window=3, rvol_threshold=2.0,
-    range_lookback=3, range_max_width_pct=0.15,
 )
 
 
@@ -38,10 +37,9 @@ def test_evaluate_ticker_aggregates_and_scores():
     assert alert.ticker == "ANTM"
     fired_tfs = {s.timeframe for s in alert.signals}
     assert fired_tfs == {"1D", "1H"}
-    # Both resistance_breakout and wyckoff_range_breakout fire on each TF:
-    # 4 signals total, priority = 2*(3) + 2*(1) = 8.0 (weight per fired signal, not per unique TF)
-    assert len(alert.signals) == 4
-    assert alert.priority == 8.0
+    # One resistance_breakout per fired TF: 2 signals, priority = 3(1D) + 1(1H) = 4.0
+    assert len(alert.signals) == 2
+    assert alert.priority == 4.0
     assert alert.max_rvol == 3.0
 
 
@@ -54,5 +52,5 @@ def test_priority_higher_tf_outranks_lower():
     a = evaluate_ticker("A", {"1D": _breakout_df()}, now=NOW, **PARAMS)
     b = evaluate_ticker("B", {"1H": _breakout_df()}, now=NOW, **PARAMS)
     assert a.priority > b.priority
-    assert a.priority == 6.0
-    assert b.priority == 2.0
+    assert a.priority == 3.0
+    assert b.priority == 1.0

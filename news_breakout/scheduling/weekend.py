@@ -32,8 +32,7 @@ def run_weekend_scan(settings, *, now, sender=send_message, daily_fetcher=fetch_
         a = evaluate_ticker(
             t, {"1D": daily[t]},
             donchian_lookback=settings.donchian_lookback, rvol_window=settings.rvol_window,
-            rvol_threshold=settings.rvol_threshold, range_lookback=settings.range_lookback,
-            range_max_width_pct=settings.range_max_width_pct, now=now,
+            rvol_threshold=settings.rvol_threshold, now=now,
         )
         if a is not None:
             alerts.append(a)

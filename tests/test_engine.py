@@ -65,24 +65,21 @@ def _tight_range_breakout_df(last_volume):
     )
 
 
-def test_evaluate_timeframe_returns_both_signal_types():
+def test_evaluate_timeframe_returns_resistance_signal():
     df = _tight_range_breakout_df(last_volume=300)  # rvol 3.0
     sigs = evaluate_timeframe(
         "ANTM", df, "4H",
-        donchian_lookback=4, rvol_window=4, rvol_threshold=2.0,
-        range_lookback=4, range_max_width_pct=0.15, now=NOW,
+        donchian_lookback=4, rvol_window=4, rvol_threshold=2.0, now=NOW,
     )
-    types = {s.signal_type for s in sigs}
-    assert types == {"resistance_breakout", "wyckoff_range_breakout"}
-    assert all(s.timeframe == "4H" for s in sigs)
-    assert all(s.rvol == 3.0 for s in sigs)
+    assert [s.signal_type for s in sigs] == ["resistance_breakout"]
+    assert sigs[0].timeframe == "4H"
+    assert sigs[0].rvol == 3.0
 
 
 def test_evaluate_timeframe_empty_when_volume_low():
     df = _tight_range_breakout_df(last_volume=110)  # rvol 1.1 < 2.0
     sigs = evaluate_timeframe(
         "ANTM", df, "1H",
-        donchian_lookback=4, rvol_window=4, rvol_threshold=2.0,
-        range_lookback=4, range_max_width_pct=0.15, now=NOW,
+        donchian_lookback=4, rvol_window=4, rvol_threshold=2.0, now=NOW,
     )
     assert sigs == []

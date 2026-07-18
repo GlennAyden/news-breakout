@@ -37,8 +37,7 @@ def scan_once(settings: Settings, daily_data, intraday_data, store: DedupStore,
         alert = evaluate_ticker(
             ticker, frames,
             donchian_lookback=settings.donchian_lookback, rvol_window=settings.rvol_window,
-            rvol_threshold=settings.rvol_threshold, range_lookback=settings.range_lookback,
-            range_max_width_pct=settings.range_max_width_pct, now=now,
+            rvol_threshold=settings.rvol_threshold, now=now,
         )
         if alert is not None:
             if alert.ticker in catalysts:
