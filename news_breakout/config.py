@@ -34,6 +34,9 @@ class Settings(BaseModel):
     idx_proxy: str
     news_booster_window_hours: int = 48
     news_priority_boost: float = 3.0
+    portal_enabled: bool = False
+    portal_sources: list[str] = []
+    portal_name_map: dict[str, str] = {}
 
 
 def _load_env_file(env_path: str) -> None:
@@ -60,6 +63,7 @@ def load_settings(
     schedule = raw.get("schedule", {})
     universe = raw.get("universe", {})
     news = raw.get("news", {})
+    portal = raw.get("portal", {})
     return Settings(
         watchlist=raw["watchlist"],
         donchian_lookback=signals["donchian_lookback"],
@@ -87,4 +91,7 @@ def load_settings(
         idx_proxy=os.environ.get("IDX_PROXY", ""),
         news_booster_window_hours=news.get("booster_window_hours", 48),
         news_priority_boost=news.get("priority_boost", 3.0),
+        portal_enabled=portal.get("enabled", False),
+        portal_sources=portal.get("sources", []),
+        portal_name_map=portal.get("name_map", {}),
     )

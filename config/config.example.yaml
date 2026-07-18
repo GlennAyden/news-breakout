@@ -74,3 +74,8 @@ news:
   news_poll_interval_minutes: 60
   booster_window_hours: 48
   priority_boost: 3.0
+
+portal:
+  enabled: false          # opt-in; enable after adding sources + tuning name_map
+  sources: []             # RSS feed URLs, e.g. https://www.kontan.co.id/rss
+  name_map: {}            # lowercase company name -> ticker, e.g. {barito pacific: BRPT, aneka tambang: ANTM}
