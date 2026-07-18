@@ -29,9 +29,12 @@ signals:
   donchian_lookback: 20
   rvol_threshold: 2.0
   rvol_window: 20
+  range_lookback: 30
+  range_max_width_pct: 0.15
 
 data:
   history_days: 120
+  intraday_period_days: 60
 
 runtime:
   dry_run: true   # true = log alerts instead of sending to Telegram

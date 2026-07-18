@@ -13,6 +13,9 @@ class Settings(BaseModel):
     rvol_threshold: float
     rvol_window: int
     history_days: int
+    range_lookback: int
+    range_max_width_pct: float
+    intraday_period_days: int
     telegram_bot_token: str
     telegram_breakout_chat_id: str
     dry_run: bool
@@ -45,6 +48,9 @@ def load_settings(
         rvol_threshold=signals["rvol_threshold"],
         rvol_window=signals["rvol_window"],
         history_days=data["history_days"],
+        range_lookback=signals["range_lookback"],
+        range_max_width_pct=signals["range_max_width_pct"],
+        intraday_period_days=data["intraday_period_days"],
         telegram_bot_token=os.environ["TELEGRAM_BOT_TOKEN"],
         telegram_breakout_chat_id=os.environ["TELEGRAM_BREAKOUT_CHAT_ID"],
         dry_run=runtime["dry_run"],
