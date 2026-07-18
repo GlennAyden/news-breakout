@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -46,6 +47,11 @@ def scan_once(settings: Settings, data, store: DedupStore, *, now, sender=send_m
 
 
 def main() -> None:
+    # Emoji in alert text must print correctly on Windows consoles (default cp1252).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
     settings = load_settings()
     data = fetch_daily_ohlcv(settings.watchlist, settings.history_days)
     os.makedirs("data_cache", exist_ok=True)
