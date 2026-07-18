@@ -106,3 +106,8 @@ portal:
     rukun raharja: RAJA
     timah: TINS
     chandra asri: TPIA
+
+# Price data (M6): the VPS reads OHLCV from Supabase, filled by a GitHub Actions
+# fetcher. Set these in the environment / VPS .env (never commit real values):
+#   SUPABASE_URL=https://<project>.supabase.co
+#   SUPABASE_KEY=<service_role key>

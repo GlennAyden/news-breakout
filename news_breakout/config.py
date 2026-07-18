@@ -37,6 +37,8 @@ class Settings(BaseModel):
     portal_enabled: bool = False
     portal_sources: list = []  # each item is a url string, or {"url": ..., "parser": ...}
     portal_name_map: dict[str, str] = {}
+    supabase_url: str = ""
+    supabase_key: str = ""
 
 
 def _load_env_file(env_path: str) -> None:
@@ -94,4 +96,6 @@ def load_settings(
         portal_enabled=portal.get("enabled", False),
         portal_sources=portal.get("sources", []),
         portal_name_map=portal.get("name_map", {}),
+        supabase_url=os.environ.get("SUPABASE_URL", ""),
+        supabase_key=os.environ.get("SUPABASE_KEY", ""),
     )
