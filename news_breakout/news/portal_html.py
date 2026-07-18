@@ -137,9 +137,20 @@ def parse_bisnis(html: str, source: str, *, now: datetime) -> list[PortalNews]:
         title = _clean(m.group(2))
         if not title:
             continue
-        window = html[max(0, m.start() - 900):m.start()]
-        date_matches = list(_BISNIS_DATE_RE.finditer(window))
-        ts = _parse_indo_date(date_matches[-1].group(1), now) if date_matches else now
+        # Bisnis has two templates: the "Berita Terkini" main list puts artDate
+        # AFTER the title, inside the anchor; primary cards put it BEFORE the
+        # anchor. Check after first, then fall back to before.
+        after = html[m.end():m.end() + 400]
+        before = html[max(0, m.start() - 900):m.start()]
+        date_txt = ""
+        am = _BISNIS_DATE_RE.search(after)
+        if am:
+            date_txt = am.group(1)
+        else:
+            bms = list(_BISNIS_DATE_RE.finditer(before))
+            if bms:
+                date_txt = bms[-1].group(1)
+        ts = _parse_indo_date(date_txt, now) if date_txt else now
         out.append(PortalNews("", title, ts, link, source))
     return out
 
@@ -147,7 +158,7 @@ def parse_bisnis(html: str, source: str, *, now: datetime) -> list[PortalNews]:
 # ---- Investor -------------------------------------------------------------------
 
 _INVESTOR_ITEM_RE = re.compile(
-    r'<a\b[^>]*\bhref=["\'](/market/\d+/[^"\']+)["\'][^>]*\bclass=["\'][^"\']*\bstretched-link\b[^"\']*["\'][^>]*>'
+    r'<a\b[^>]*\bhref=["\'](/market/\d+/[^"\']+)["\'][^>]*>'
     r'[\s\S]{0,600}?<img\b[^>]*\balt=["\']([^"\']+)["\']',
     re.I,
 )

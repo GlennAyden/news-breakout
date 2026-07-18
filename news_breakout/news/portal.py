@@ -81,7 +81,9 @@ def fetch_portal_news(sources, watchlist, name_map, *, now, http_get=None) -> li
         http_get = _default_http_get
     out = []
     for src in sources:
-        url = src if isinstance(src, str) else src["url"]
+        url = src if isinstance(src, str) else src.get("url")
+        if not url:
+            continue
         parser_name = "rss" if isinstance(src, str) else src.get("parser", "rss")
         try:
             text = http_get(url)

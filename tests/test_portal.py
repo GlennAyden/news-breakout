@@ -146,6 +146,21 @@ def test_fetch_portal_news_dict_source_dispatches_to_named_parser():
     assert out[0].source == "emitennews.com"
 
 
+def test_fetch_portal_news_skips_malformed_dict_source_without_url():
+    def http_get(url):
+        return RSS_XML
+
+    out = fetch_portal_news(
+        [{"parser": "rss"}, "https://www.kontan.co.id/rss"],
+        ["ANTM", "BRPT"], {"barito pacific": "BRPT"},
+        now=NOW, http_get=http_get,
+    )
+    assert {i.url for i in out} == {
+        "https://www.kontan.co.id/news/barito-pacific-1",
+        "https://www.kontan.co.id/news/antm-naik",
+    }
+
+
 def test_fetch_portal_news_mixed_string_and_dict_sources():
     def http_get(url):
         return RSS_XML

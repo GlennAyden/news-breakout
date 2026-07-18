@@ -246,6 +246,53 @@ def test_parse_bisnis_defaults_to_now_when_no_date_in_window():
     assert items[0].timestamp == NOW
 
 
+# "Berita Terkini" main-list template: artDate sits AFTER the title, inside the
+# anchor. A primary-card item (artDate BEFORE the anchor) is included alongside
+# it to confirm that template still resolves correctly too.
+BISNIS_MIXED_TEMPLATES_HTML = """
+<div class="artItem">
+  <div class="art--col">
+    <a href="https://market.bisnis.com/read/20260718/7/1/primary-card-item" class="artLinkImg">
+      <div class="artImg"><img src="x.jpg" alt="Primary Card"></div>
+    </a>
+    <div class="artContent">
+      <div class="artContentWrap">
+        <div class="artChannel"><a href="https://market.bisnis.com/x">Bursa &amp; Saham</a></div>
+        <div class="artDate">17 Jul 2026 | 20:00 WIB</div>
+      </div>
+      <a href="https://market.bisnis.com/read/20260718/7/1/primary-card-item" class="artLink">
+        <h4 class="artTitle">Berita Kartu Utama</h4>
+      </a>
+    </div>
+  </div>
+</div>
+""" + ("<!-- filler padding between artItem blocks, as in real bisnis.html -->" * 10) + """
+<a href="https://market.bisnis.com/read/20260718/7/2/main-list-item" class="artLink">
+    <h4 class="artTitle">
+        IHSG Naik 4,24% Sepekan, Kapitalisasi Pasar BEI Tembus Rp10.749 Triliun
+    </h4>
+    <div class="artDate">
+        16 Jul 2026 | 22:48 WIB
+    </div>
+</a>
+"""
+
+
+def test_parse_bisnis_main_list_item_resolves_date_after_title():
+    items = parse_bisnis(BISNIS_MIXED_TEMPLATES_HTML, "market.bisnis.com", now=NOW)
+    by_title = {i.title: i for i in items}
+    main_list_item = by_title["IHSG Naik 4,24% Sepekan, Kapitalisasi Pasar BEI Tembus Rp10.749 Triliun"]
+    assert main_list_item.timestamp == datetime(2026, 7, 16, 22, 48, tzinfo=WIB)
+    assert main_list_item.timestamp != NOW
+
+
+def test_parse_bisnis_primary_card_item_still_resolves_date_before_anchor():
+    items = parse_bisnis(BISNIS_MIXED_TEMPLATES_HTML, "market.bisnis.com", now=NOW)
+    by_title = {i.title: i for i in items}
+    primary_card_item = by_title["Berita Kartu Utama"]
+    assert primary_card_item.timestamp == datetime(2026, 7, 17, 20, 0, tzinfo=WIB)
+
+
 # ---- parse_investor -------------------------------------------------------------
 
 INVESTOR_HTML = """
@@ -298,3 +345,23 @@ def test_parse_investor_ignores_non_market_paths():
 """
     items = parse_investor(html, "investor.id", now=NOW)
     assert items == []
+
+
+# Main article-list card as seen in investor.html: no stretched-link class on the
+# anchor at all (unlike the hero cards).
+INVESTOR_MAIN_LIST_CARD_HTML = """
+<div class="col-4">
+  <a href="/market/446918/astra-asii-kantongi-restu-buyback-saham-rp-8-triliun">
+    <div class="ratio ratio-4x3 overflow-hidden rounded-3">
+      <img src="https://img2.beritasatu.com/thumb.webp" class="lazy" alt="Astra (ASII) Kantongi Restu Buyback Saham Rp 8 Triliun">
+    </div>
+  </a>
+</div>
+"""
+
+
+def test_parse_investor_captures_main_list_card_without_stretched_link():
+    items = parse_investor(INVESTOR_MAIN_LIST_CARD_HTML, "investor.id", now=NOW)
+    assert len(items) == 1
+    assert items[0].title == "Astra (ASII) Kantongi Restu Buyback Saham Rp 8 Triliun"
+    assert items[0].url == "https://investor.id/market/446918/astra-asii-kantongi-restu-buyback-saham-rp-8-triliun"
