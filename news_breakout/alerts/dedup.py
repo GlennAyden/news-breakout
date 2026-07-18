@@ -17,6 +17,9 @@ class DedupStore:
             )
             """
         )
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS sent_news (disclosure_id TEXT PRIMARY KEY)"
+        )
         self._conn.commit()
 
     def already_sent(
@@ -35,6 +38,18 @@ class DedupStore:
         self._conn.execute(
             "INSERT OR IGNORE INTO sent_alerts VALUES (?, ?, ?, ?)",
             (ticker, signal_type, timeframe, date_str),
+        )
+        self._conn.commit()
+
+    def news_already_sent(self, disclosure_id: str) -> bool:
+        cur = self._conn.execute(
+            "SELECT 1 FROM sent_news WHERE disclosure_id=?", (disclosure_id,)
+        )
+        return cur.fetchone() is not None
+
+    def news_mark_sent(self, disclosure_id: str) -> None:
+        self._conn.execute(
+            "INSERT OR IGNORE INTO sent_news VALUES (?)", (disclosure_id,)
         )
         self._conn.commit()
 
