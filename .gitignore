@@ -11,6 +11,8 @@ env/
 .env
 *.local.env
 !.env.example
+config/config.yaml
+!config/config.example.yaml
 
 # Data, cache & state
 *.db
