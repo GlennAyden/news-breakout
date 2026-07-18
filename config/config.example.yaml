@@ -1,0 +1,37 @@
+# Non-secret configuration. Copy to config/config.yaml and edit.
+watchlist:
+  - ANTM
+  - ARCI
+  - BREN
+  - BRMS
+  - BRPT
+  - BUMI
+  - BUVA
+  - CUAN
+  - DEWA
+  - DSSA
+  - ENRG
+  - HRUM
+  - IMPC
+  - MEDC
+  - MINA
+  - PANI
+  - PTRO
+  - RATU
+  - RAJA
+  - TINS
+  - TOBA
+  - TPIA
+  - VKTR
+  - WIFI
+
+signals:
+  donchian_lookback: 20
+  rvol_threshold: 2.0
+  rvol_window: 20
+
+data:
+  history_days: 120
+
+runtime:
+  dry_run: true   # true = log alerts instead of sending to Telegram
