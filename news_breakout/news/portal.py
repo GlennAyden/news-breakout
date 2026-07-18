@@ -67,16 +67,29 @@ def _default_http_get(url: str) -> str:
 
 
 def fetch_portal_news(sources, watchlist, name_map, *, now, http_get=None) -> list[PortalNews]:
+    # Local import avoids a circular import: portal_html.py imports PortalNews
+    # from this module, so this module cannot import portal_html at load time.
+    from news_breakout.news.portal_html import parse_bisnis, parse_emitennews, parse_investor
+
+    parsers = {
+        "rss": parse_rss,
+        "emitennews": parse_emitennews,
+        "bisnis": parse_bisnis,
+        "investor": parse_investor,
+    }
     if http_get is None:
         http_get = _default_http_get
     out = []
     for src in sources:
+        url = src if isinstance(src, str) else src["url"]
+        parser_name = "rss" if isinstance(src, str) else src.get("parser", "rss")
         try:
-            xml = http_get(src)
+            text = http_get(url)
         except Exception:  # noqa: BLE001
-            logger.warning("portal fetch failed: %s", src)
+            logger.warning("portal fetch failed: %s", url)
             continue
-        for item in parse_rss(xml, _source_name(src), now=now):
+        parser = parsers.get(parser_name, parse_rss)
+        for item in parser(text, _source_name(url), now=now):
             tk = match_ticker(item.title, watchlist, name_map)
             if tk:
                 item.ticker = tk

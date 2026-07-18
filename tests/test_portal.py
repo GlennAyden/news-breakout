@@ -106,6 +106,59 @@ def test_fetch_portal_news_keeps_only_ticker_matches_and_skips_failing_source():
     assert tickers == {"BRPT", "ANTM"}
 
 
+def test_fetch_portal_news_dict_source_defaults_to_rss_parser():
+    def http_get(url):
+        return RSS_XML
+
+    out = fetch_portal_news(
+        [{"url": "https://www.kontan.co.id/rss"}],
+        ["ANTM", "BRPT"], {"barito pacific": "BRPT"},
+        now=NOW, http_get=http_get,
+    )
+    assert {i.url for i in out} == {
+        "https://www.kontan.co.id/news/barito-pacific-1",
+        "https://www.kontan.co.id/news/antm-naik",
+    }
+
+
+def test_fetch_portal_news_dict_source_dispatches_to_named_parser():
+    emiten_html = """
+    <a href="https://emitennews.com/news/barito-pacific-catat-kinerja" class="news-card-2 search-result-item">
+        <div class="news-card-2-content title-category">
+            <p class="fs-16">Barito Pacific catat kinerja positif</p>
+            <div class="label"><span class="small">2 jam yang lalu</span></div>
+        </div>
+    </a>
+    """
+
+    def http_get(url):
+        assert url == "https://emitennews.com/category/emiten"
+        return emiten_html
+
+    out = fetch_portal_news(
+        [{"url": "https://emitennews.com/category/emiten", "parser": "emitennews"}],
+        ["BRPT"], {"barito pacific": "BRPT"},
+        now=NOW, http_get=http_get,
+    )
+    assert len(out) == 1
+    assert out[0].ticker == "BRPT"
+    assert out[0].url == "https://emitennews.com/news/barito-pacific-catat-kinerja"
+    assert out[0].source == "emitennews.com"
+
+
+def test_fetch_portal_news_mixed_string_and_dict_sources():
+    def http_get(url):
+        return RSS_XML
+
+    out = fetch_portal_news(
+        ["https://www.kontan.co.id/rss", {"url": "https://www.kontan.co.id/rss", "parser": "rss"}],
+        ["ANTM", "BRPT"], {"barito pacific": "BRPT"},
+        now=NOW, http_get=http_get,
+    )
+    # both sources parsed the same RSS_XML -> 2 matches each = 4 total
+    assert len(out) == 4
+
+
 # ---- format_portal ------------------------------------------------------------
 
 def test_format_portal_contains_key_fields():
