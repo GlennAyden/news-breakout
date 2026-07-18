@@ -35,7 +35,7 @@ class Settings(BaseModel):
     news_booster_window_hours: int = 48
     news_priority_boost: float = 3.0
     portal_enabled: bool = False
-    portal_sources: list[str] = []
+    portal_sources: list = []  # each item is a url string, or {"url": ..., "parser": ...}
     portal_name_map: dict[str, str] = {}
 
 

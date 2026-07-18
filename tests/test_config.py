@@ -86,6 +86,41 @@ def test_load_settings_reads_portal_section(tmp_path):
     assert s.portal_name_map == {"barito pacific": "BRPT"}
 
 
+def test_load_settings_reads_portal_dict_sources_with_parser(tmp_path):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "watchlist: [ANTM, BBRI]\n"
+        "signals: {donchian_lookback: 20, rvol_threshold: 2.0, rvol_window: 20, "
+        "range_lookback: 30, range_max_width_pct: 0.15}\n"
+        "data: {history_days: 120, intraday_period_days: 60}\n"
+        "runtime: {dry_run: true}\n"
+        "schedule: {market_open: \"09:00\", market_close: \"16:00\", scan_interval_minutes: 30, "
+        "weekend_scan_day: \"sat\", holidays: [\"2026-01-01\"]}\n"
+        "universe: {candidates: [], min_price: 50, min_daily_value: 1000000000}\n"
+        "news: {curated_keywords: [dividen], disclosure_page_size: 50, "
+        "news_poll_interval_minutes: 60}\n"
+        "portal: {enabled: true, sources: ["
+        "{url: \"https://www.kontan.co.id/rss\", parser: rss}, "
+        "{url: \"https://emitennews.com/category/emiten\", parser: emitennews}"
+        "], name_map: {barito pacific: BRPT}}\n",
+        encoding="utf-8",
+    )
+    env = tmp_path / ".env"
+    env.write_text(
+        "TELEGRAM_BOT_TOKEN=abc:123\nTELEGRAM_BREAKOUT_CHAT_ID=-100999\n"
+        "TELEGRAM_NEWS_CHAT_ID=-200\n",
+        encoding="utf-8",
+    )
+
+    s = load_settings(str(cfg), str(env))
+
+    assert s.portal_enabled is True
+    assert s.portal_sources == [
+        {"url": "https://www.kontan.co.id/rss", "parser": "rss"},
+        {"url": "https://emitennews.com/category/emiten", "parser": "emitennews"},
+    ]
+
+
 def test_load_settings_falls_back_to_booster_defaults_when_absent(tmp_path):
     cfg = tmp_path / "config.yaml"
     cfg.write_text(
