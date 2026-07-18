@@ -9,9 +9,27 @@ from news_breakout.alerts.dedup import DedupStore
 from news_breakout.scheduling.scheduler import should_scan_now, build_scheduler
 from news_breakout.scheduling.weekend import run_weekend_scan
 from news_breakout.news.feed import run_news_feed, run_portal_feed
+from news_breakout.data.supabase_source import make_daily_fetcher, make_intraday_fetcher
 import run
 
 WIB = ZoneInfo("Asia/Jakarta")
+
+
+def build_scan_job(settings, store, log):
+    daily_fetcher = make_daily_fetcher(settings)
+    intraday_fetcher = make_intraday_fetcher(settings)
+
+    def scan_job() -> None:
+        now = datetime.now(WIB)
+        if not should_scan_now(now, settings):
+            return
+        alerted = run.run_scan(
+            settings, store, now=now,
+            daily_fetcher=daily_fetcher, intraday_fetcher=intraday_fetcher,
+        )
+        log.info("scan complete; alerted: %s", alerted or "none")
+
+    return scan_job
 
 
 def main() -> None:
@@ -21,12 +39,7 @@ def main() -> None:
     os.makedirs("data_cache", exist_ok=True)
     store = DedupStore("data_cache/dedup.sqlite")
 
-    def scan_job() -> None:
-        now = datetime.now(WIB)
-        if not should_scan_now(now, settings):
-            return
-        alerted = run.run_scan(settings, store, now=now)
-        log.info("scan complete; alerted: %s", alerted or "none")
+    scan_job = build_scan_job(settings, store, log)
 
     def weekend_job() -> None:
         now = datetime.now(WIB)

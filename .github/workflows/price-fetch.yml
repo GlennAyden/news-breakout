@@ -1,0 +1,21 @@
+# .github/workflows/price-fetch.yml
+name: price-fetch
+on:
+  schedule:
+    - cron: "*/30 2-9 * * 1-5"   # every 30 min, 02:00-09:00 UTC = 09:00-16:00 WIB, Mon-Fri
+    - cron: "0 3 * * 6"          # Sat 10:00 WIB — refresh 1d bars for the weekend deep-scan
+  workflow_dispatch: {}
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet yfinance httpx pandas pyyaml
+      - name: Fetch prices to Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python scripts/fetch_to_supabase.py
