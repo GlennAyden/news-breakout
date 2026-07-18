@@ -1,6 +1,8 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import pandas as pd
+
 from tests.fixtures import make_ohlcv
 from news_breakout.config import Settings
 from news_breakout.alerts.dedup import DedupStore
@@ -23,6 +25,39 @@ def _breakout_daily():
     return {"ANTM": make_ohlcv(
         highs=[110, 108, 110, 116], lows=[100, 101, 102, 108],
         closes=[100, 100, 100, 115], volumes=[100, 100, 100, 300])}
+
+
+def _breakout_intraday_1h():
+    idx = pd.date_range("2026-01-05 09:00", periods=8, freq="1h")
+    return {"ANTM": pd.DataFrame(
+        {
+            "Open":   [105, 105, 105, 105, 105, 105, 105, 115],
+            "High":   [110, 110, 110, 110, 110, 110, 110, 116],
+            "Low":    [100, 100, 100, 100, 100, 100, 100, 108],
+            "Close":  [105, 105, 105, 105, 105, 105, 105, 115],
+            "Volume": [100, 100, 100, 100, 100, 100, 100, 300],
+        },
+        index=idx,
+    )}
+
+
+def test_scan_once_evaluates_intraday_frames():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    result = run.scan_once(_settings(), _breakout_daily(), _breakout_intraday_1h(),
+                           store, now=NOW, sender=sender)
+    assert result == ["ANTM"]
+    assert len(sent) == 1
+    # proves the intraday branch built + resampled + evaluated the 1H frame,
+    # and 1D from daily is also present in the aggregated alert
+    assert "1H" in sent[0]
+    assert "1D" in sent[0]
+    store.close()
 
 
 def test_scan_once_multitf_alerts_then_dedups():
