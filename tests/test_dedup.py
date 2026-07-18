@@ -1,3 +1,5 @@
+import threading
+
 from news_breakout.alerts.dedup import DedupStore
 
 
@@ -23,4 +25,27 @@ def test_mark_sent_is_idempotent():
     store.mark_sent(*args)
     store.mark_sent(*args)  # must not raise
     assert store.already_sent(*args) is True
+    store.close()
+
+
+def test_dedup_store_usable_across_threads(tmp_path):
+    # Reproduces the serve.py pattern: store created in the main thread,
+    # used from an APScheduler worker thread. Must not raise.
+    db = str(tmp_path / "dedup.sqlite")
+    store = DedupStore(db)
+    args = ("ANTM", "aggregated", "MULTI", "2026-07-18")
+    errors = []
+
+    def worker():
+        try:
+            assert store.already_sent(*args) is False
+            store.mark_sent(*args)
+            assert store.already_sent(*args) is True
+        except Exception as e:  # noqa: BLE001
+            errors.append(repr(e))
+
+    t = threading.Thread(target=worker)
+    t.start()
+    t.join()
+    assert errors == []
     store.close()

@@ -5,7 +5,7 @@ import sqlite3
 
 class DedupStore:
     def __init__(self, db_path: str):
-        self._conn = sqlite3.connect(db_path)
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.execute(
             """
             CREATE TABLE IF NOT EXISTS sent_alerts (
