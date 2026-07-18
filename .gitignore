@@ -26,3 +26,7 @@ logs/
 Thumbs.db
 .idea/
 .vscode/
+
+# Superpowers SDD scratch (progress ledger, task reports)
+.superpowers/
+scripts/
