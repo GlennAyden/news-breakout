@@ -18,6 +18,9 @@ def _settings():
         history_days=120, range_lookback=3, range_max_width_pct=0.15,
         intraday_period_days=60,
         telegram_bot_token="tok", telegram_breakout_chat_id="-100", dry_run=True,
+        market_open="09:00", market_close="16:00", scan_interval_minutes=30,
+        weekend_scan_day="sat", holidays=[],
+        universe_candidates=[], min_price=50, min_daily_value=1_000_000_000,
     )
 
 
@@ -93,4 +96,23 @@ def test_failed_send_is_not_marked_and_retries():
     assert first == []                       # nothing counted as alerted
     retry = run.scan_once(_settings(), _breakout_daily(), {}, store, now=NOW, sender=ok_sender)
     assert retry == ["ANTM"]                 # not deduped, retried successfully
+    store.close()
+
+
+def test_run_scan_uses_injected_fetchers():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    daily = _breakout_daily()
+    result = run.run_scan(
+        _settings(), store, now=NOW, sender=sender,
+        daily_fetcher=lambda tickers, days: daily,
+        intraday_fetcher=lambda tickers, days: {},
+    )
+    assert result == ["ANTM"]
+    assert len(sent) == 1
     store.close()

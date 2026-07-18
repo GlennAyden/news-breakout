@@ -56,19 +56,26 @@ def scan_once(settings: Settings, daily_data, intraday_data, store: DedupStore,
     return alerted
 
 
+def run_scan(
+    settings: Settings, store: DedupStore, *, now, sender=send_message,
+    daily_fetcher=fetch_daily_ohlcv, intraday_fetcher=fetch_intraday_ohlcv,
+) -> list[str]:
+    daily = daily_fetcher(settings.watchlist, settings.history_days)
+    intraday = intraday_fetcher(settings.watchlist, settings.intraday_period_days)
+    return scan_once(settings, daily, intraday, store, now=now, sender=sender)
+
+
 def main() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except (AttributeError, ValueError):
         pass
     settings = load_settings()
-    daily = fetch_daily_ohlcv(settings.watchlist, settings.history_days)
-    intraday = fetch_intraday_ohlcv(settings.watchlist, settings.intraday_period_days)
     os.makedirs("data_cache", exist_ok=True)
     store = DedupStore("data_cache/dedup.sqlite")
     try:
         now = datetime.now(WIB)
-        alerted = scan_once(settings, daily, intraday, store, now=now)
+        alerted = run_scan(settings, store, now=now)
         print(f"Scan complete. Alerted: {alerted or 'none'}")
     finally:
         store.close()
