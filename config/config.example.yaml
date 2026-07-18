@@ -77,13 +77,16 @@ news:
 
 portal:
   enabled: false          # opt-in; set true after reviewing sources + name_map
-  sources:                # market-news RSS feeds (adapted from NexaQuant)
-    - https://www.cnbcindonesia.com/market/rss
-    - https://www.antaranews.com/rss/ekonomi.xml
-    - https://www.idxchannel.com/rss
-    - https://investasi.kontan.co.id/rss
-    - https://katadata.co.id/rss/finansial
-    - https://emitentrust.com/category/stock-and-market/feed/
+  sources:                # market-news feeds: RSS + HTML scrapers (adapted from NexaQuant)
+    - {url: https://www.cnbcindonesia.com/market/rss, parser: rss}
+    - {url: https://www.antaranews.com/rss/ekonomi.xml, parser: rss}
+    - {url: https://www.idxchannel.com/rss, parser: rss}
+    - {url: https://investasi.kontan.co.id/rss, parser: rss}
+    - {url: https://katadata.co.id/rss/finansial, parser: rss}
+    - {url: https://emitentrust.com/category/stock-and-market/feed/, parser: rss}
+    - {url: https://emitennews.com/category/emiten, parser: emitennews}
+    - {url: https://market.bisnis.com/bursa-saham, parser: bisnis}
+    - {url: https://investor.id/market/corporate-action, parser: investor}
   name_map:               # lowercase company name -> ticker; extend/verify for your watchlist
     aneka tambang: ANTM
     antam: ANTM
