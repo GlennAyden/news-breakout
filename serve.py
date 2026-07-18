@@ -8,6 +8,7 @@ from news_breakout.logging_setup import setup_logging
 from news_breakout.alerts.dedup import DedupStore
 from news_breakout.scheduling.scheduler import should_scan_now, build_scheduler
 from news_breakout.scheduling.weekend import run_weekend_scan
+from news_breakout.news.feed import run_news_feed
 import run
 
 WIB = ZoneInfo("Asia/Jakarta")
@@ -32,7 +33,12 @@ def main() -> None:
         log.info("weekend deep-scan starting")
         run_weekend_scan(settings, now=now)
 
-    sched = build_scheduler(settings, scan_job=scan_job, weekend_job=weekend_job)
+    def news_job() -> None:
+        now = datetime.now(WIB)
+        sent = run_news_feed(settings, store, now=now)
+        log.info("news poll complete; sent: %d", len(sent))
+
+    sched = build_scheduler(settings, scan_job=scan_job, weekend_job=weekend_job, news_job=news_job)
     log.info("scheduler started; jobs: %s", [j.id for j in sched.get_jobs()])
     try:
         sched.start()

@@ -50,3 +50,25 @@ universe:
   candidates: []            # tickers to consider beyond the watchlist (populated later)
   min_price: 50
   min_daily_value: 1000000000   # Rp 1 billion avg daily transaction value
+
+news:
+  curated_keywords:
+    - dividen
+    - rights issue
+    - hmetd
+    - private placement
+    - buyback
+    - pembelian kembali
+    - akuisisi
+    - divestasi
+    - merger
+    - penggabungan
+    - rups
+    - laporan keuangan
+    - fakta material
+    - kontrak
+    - obligasi
+    - stock split
+    - pemegang saham
+  disclosure_page_size: 50
+  news_poll_interval_minutes: 60

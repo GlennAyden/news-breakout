@@ -27,6 +27,11 @@ class Settings(BaseModel):
     universe_candidates: list[str]
     min_price: float
     min_daily_value: float
+    telegram_news_chat_id: str
+    curated_keywords: list[str]
+    disclosure_page_size: int
+    news_poll_interval_minutes: int
+    idx_proxy: str
 
 
 def _load_env_file(env_path: str) -> None:
@@ -52,6 +57,7 @@ def load_settings(
     runtime = raw.get("runtime", {})
     schedule = raw.get("schedule", {})
     universe = raw.get("universe", {})
+    news = raw.get("news", {})
     return Settings(
         watchlist=raw["watchlist"],
         donchian_lookback=signals["donchian_lookback"],
@@ -72,4 +78,9 @@ def load_settings(
         universe_candidates=universe["candidates"],
         min_price=universe["min_price"],
         min_daily_value=universe["min_daily_value"],
+        telegram_news_chat_id=os.environ["TELEGRAM_NEWS_CHAT_ID"],
+        curated_keywords=news["curated_keywords"],
+        disclosure_page_size=news["disclosure_page_size"],
+        news_poll_interval_minutes=news["news_poll_interval_minutes"],
+        idx_proxy=os.environ.get("IDX_PROXY", ""),
     )

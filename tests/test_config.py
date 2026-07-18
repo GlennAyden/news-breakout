@@ -11,12 +11,15 @@ def test_load_settings_merges_yaml_and_env(tmp_path):
         "runtime: {dry_run: true}\n"
         "schedule: {market_open: \"09:00\", market_close: \"16:00\", scan_interval_minutes: 30, "
         "weekend_scan_day: \"sat\", holidays: [\"2026-01-01\"]}\n"
-        "universe: {candidates: [], min_price: 50, min_daily_value: 1000000000}\n",
+        "universe: {candidates: [], min_price: 50, min_daily_value: 1000000000}\n"
+        "news: {curated_keywords: [dividen], disclosure_page_size: 50, "
+        "news_poll_interval_minutes: 60}\n",
         encoding="utf-8",
     )
     env = tmp_path / ".env"
     env.write_text(
-        "TELEGRAM_BOT_TOKEN=abc:123\nTELEGRAM_BREAKOUT_CHAT_ID=-100999\n",
+        "TELEGRAM_BOT_TOKEN=abc:123\nTELEGRAM_BREAKOUT_CHAT_ID=-100999\n"
+        "TELEGRAM_NEWS_CHAT_ID=-200\n",
         encoding="utf-8",
     )
 
@@ -40,3 +43,8 @@ def test_load_settings_merges_yaml_and_env(tmp_path):
     assert s.universe_candidates == []
     assert s.min_price == 50
     assert s.min_daily_value == 1000000000
+    assert s.telegram_news_chat_id == "-200"
+    assert s.curated_keywords == ["dividen"]
+    assert s.disclosure_page_size == 50
+    assert s.news_poll_interval_minutes == 60
+    assert s.idx_proxy == ""

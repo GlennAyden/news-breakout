@@ -15,6 +15,8 @@ def _settings(**over):
         market_open="09:00", market_close="16:00", scan_interval_minutes=30,
         weekend_scan_day="sat", holidays=["2026-07-17"],
         universe_candidates=[], min_price=50, min_daily_value=1_000_000_000,
+        telegram_news_chat_id="-200", curated_keywords=["dividen"],
+        disclosure_page_size=50, news_poll_interval_minutes=60, idx_proxy="",
     )
     base.update(over)
     return Settings(**base)
@@ -31,6 +33,7 @@ def test_should_scan_now_false_on_holiday_and_offhours():
 
 
 def test_build_scheduler_registers_two_jobs():
-    sched = build_scheduler(_settings(), scan_job=lambda: None, weekend_job=lambda: None)
+    sched = build_scheduler(_settings(), scan_job=lambda: None, weekend_job=lambda: None,
+                            news_job=lambda: None)
     ids = {j.id for j in sched.get_jobs()}
-    assert ids == {"scan", "weekend"}
+    assert ids == {"scan", "weekend", "news"}

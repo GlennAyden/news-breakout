@@ -21,6 +21,8 @@ def _settings():
         market_open="09:00", market_close="16:00", scan_interval_minutes=30,
         weekend_scan_day="sat", holidays=[],
         universe_candidates=[], min_price=50, min_daily_value=1_000_000_000,
+        telegram_news_chat_id="-200", curated_keywords=["dividen"],
+        disclosure_page_size=50, news_poll_interval_minutes=60, idx_proxy="",
     )
 
 
