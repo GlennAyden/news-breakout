@@ -38,8 +38,10 @@ def test_evaluate_ticker_aggregates_and_scores():
     assert alert.ticker == "ANTM"
     fired_tfs = {s.timeframe for s in alert.signals}
     assert fired_tfs == {"1D", "1H"}
-    # 1D weight 3 + 1H weight 1, counted once per fired signal on each TF
-    assert alert.priority >= 4.0
+    # Both resistance_breakout and wyckoff_range_breakout fire on each TF:
+    # 4 signals total, priority = 2*(3) + 2*(1) = 8.0 (weight per fired signal, not per unique TF)
+    assert len(alert.signals) == 4
+    assert alert.priority == 8.0
     assert alert.max_rvol == 3.0
 
 
@@ -52,3 +54,5 @@ def test_priority_higher_tf_outranks_lower():
     a = evaluate_ticker("A", {"1D": _breakout_df()}, now=NOW, **PARAMS)
     b = evaluate_ticker("B", {"1H": _breakout_df()}, now=NOW, **PARAMS)
     assert a.priority > b.priority
+    assert a.priority == 6.0
+    assert b.priority == 2.0
