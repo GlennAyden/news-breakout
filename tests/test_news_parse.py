@@ -55,3 +55,21 @@ def test_parse_tolerates_non_dict_records():
     out = parse_disclosures(data, now=NOW)
     assert len(out) == 1
     assert out[0].disclosure_id == "ok"
+
+
+def test_parse_real_idx_field_shape():
+    data = {"Replies": [{
+        "pengumuman": {
+            "Id2": "20260717-169", "NoPengumuman": "169",
+            "Kode_Emiten": "PTPP                     ",
+            "TglPengumuman": "2026-07-17T20:03:01",
+            "JudulPengumuman": "Laporan Fakta Material",
+        },
+        "attachments": [
+            {"FullSavePath": "https://www.idx.co.id/StaticData/x/a.pdf", "IsAttachment": False},
+        ],
+    }]}
+    out = parse_disclosures(data, now=NOW)
+    assert len(out) == 1
+    assert out[0].ticker == "PTPP"                                   # Kode_Emiten, stripped
+    assert out[0].url == "https://www.idx.co.id/StaticData/x/a.pdf"  # PDF attachment link

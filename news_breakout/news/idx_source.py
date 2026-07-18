@@ -39,6 +39,13 @@ def _parse_ts(raw: str, now: datetime) -> datetime:
     return naive.replace(tzinfo=WIB) if naive.tzinfo is None else naive.astimezone(WIB)
 
 
+def _attachment_url(reply: dict) -> str:
+    for att in (reply.get("attachments") or []):
+        if isinstance(att, dict) and att.get("FullSavePath"):
+            return str(att["FullSavePath"])
+    return ""
+
+
 def parse_disclosures(data: dict, *, now: datetime) -> list[Disclosure]:
     out: list[Disclosure] = []
     for reply in (data or {}).get("Replies", []) or []:
@@ -50,11 +57,11 @@ def parse_disclosures(data: dict, *, now: datetime) -> list[Disclosure]:
         if not title or not disc_id:
             continue
         out.append(Disclosure(
-            ticker=_first(rec, ["KodeEmiten", "kodeEmiten", "kode", "Kode"]),
+            ticker=_first(rec, ["Kode_Emiten", "KodeEmiten", "kodeEmiten", "kode", "Kode"]),
             title=title,
             timestamp=_parse_ts(_first(rec, ["TglPengumuman"]), now),
             disclosure_id=disc_id,
-            url=_DISCLOSURE_URL,
+            url=_attachment_url(reply) or _DISCLOSURE_URL,
         ))
     return out
 
