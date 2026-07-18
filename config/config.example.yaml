@@ -27,7 +27,7 @@ watchlist:
 
 signals:
   donchian_lookback: 20
-  rvol_threshold: 2.0
+  rvol_threshold: 2.5   # raised 2.0->2.5 per 5y backtest: higher RVOL -> better forward returns, ~20% fewer/more-selective alerts
   rvol_window: 20
   range_lookback: 30
   range_max_width_pct: 0.15
