@@ -19,6 +19,14 @@ class Settings(BaseModel):
     telegram_bot_token: str
     telegram_breakout_chat_id: str
     dry_run: bool
+    market_open: str
+    market_close: str
+    scan_interval_minutes: int
+    weekend_scan_day: str
+    holidays: list[str]
+    universe_candidates: list[str]
+    min_price: float
+    min_daily_value: float
 
 
 def _load_env_file(env_path: str) -> None:
@@ -42,6 +50,8 @@ def load_settings(
     signals = raw.get("signals", {})
     data = raw.get("data", {})
     runtime = raw.get("runtime", {})
+    schedule = raw.get("schedule", {})
+    universe = raw.get("universe", {})
     return Settings(
         watchlist=raw["watchlist"],
         donchian_lookback=signals["donchian_lookback"],
@@ -54,4 +64,12 @@ def load_settings(
         telegram_bot_token=os.environ["TELEGRAM_BOT_TOKEN"],
         telegram_breakout_chat_id=os.environ["TELEGRAM_BREAKOUT_CHAT_ID"],
         dry_run=runtime["dry_run"],
+        market_open=schedule["market_open"],
+        market_close=schedule["market_close"],
+        scan_interval_minutes=schedule["scan_interval_minutes"],
+        weekend_scan_day=schedule["weekend_scan_day"],
+        holidays=schedule["holidays"],
+        universe_candidates=universe["candidates"],
+        min_price=universe["min_price"],
+        min_daily_value=universe["min_daily_value"],
     )

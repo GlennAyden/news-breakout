@@ -38,3 +38,15 @@ data:
 
 runtime:
   dry_run: true   # true = log alerts instead of sending to Telegram
+
+schedule:
+  market_open: "09:00"
+  market_close: "16:00"
+  scan_interval_minutes: 30
+  weekend_scan_day: "sat"
+  holidays: []   # IDX holiday dates as "YYYY-MM-DD"; fill these in yearly
+
+universe:
+  candidates: []            # tickers to consider beyond the watchlist (populated later)
+  min_price: 50
+  min_daily_value: 1000000000   # Rp 1 billion avg daily transaction value

@@ -8,7 +8,10 @@ def test_load_settings_merges_yaml_and_env(tmp_path):
         "signals: {donchian_lookback: 20, rvol_threshold: 2.0, rvol_window: 20, "
         "range_lookback: 30, range_max_width_pct: 0.15}\n"
         "data: {history_days: 120, intraday_period_days: 60}\n"
-        "runtime: {dry_run: true}\n",
+        "runtime: {dry_run: true}\n"
+        "schedule: {market_open: \"09:00\", market_close: \"16:00\", scan_interval_minutes: 30, "
+        "weekend_scan_day: \"sat\", holidays: [\"2026-01-01\"]}\n"
+        "universe: {candidates: [], min_price: 50, min_daily_value: 1000000000}\n",
         encoding="utf-8",
     )
     env = tmp_path / ".env"
@@ -30,3 +33,10 @@ def test_load_settings_merges_yaml_and_env(tmp_path):
     assert s.dry_run is True
     assert s.telegram_bot_token == "abc:123"
     assert s.telegram_breakout_chat_id == "-100999"
+    assert s.market_open == "09:00"
+    assert s.scan_interval_minutes == 30
+    assert s.weekend_scan_day == "sat"
+    assert s.holidays == ["2026-01-01"]
+    assert s.universe_candidates == []
+    assert s.min_price == 50
+    assert s.min_daily_value == 1000000000
