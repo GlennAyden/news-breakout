@@ -31,3 +31,40 @@ def test_real_send_posts_to_telegram():
     assert fake.calls[0]["url"].endswith("/bottok/sendMessage")
     assert fake.calls[0]["json"]["chat_id"] == "-100"
     assert fake.calls[0]["json"]["text"] == "hello"
+
+
+class FlakyThenOkClient:
+    """Raises on the first post (simulating e.g. httpx.ReadTimeout), then succeeds."""
+
+    def __init__(self):
+        self.calls = []
+
+    def post(self, url, json, timeout):
+        self.calls.append({"url": url, "json": json})
+        if len(self.calls) == 1:
+            raise TimeoutError("simulated network timeout")
+        return FakeResponse(200)
+
+
+class AlwaysFailingClient:
+    def __init__(self):
+        self.calls = []
+
+    def post(self, url, json, timeout):
+        self.calls.append({"url": url, "json": json})
+        raise TimeoutError("simulated network timeout")
+
+
+def test_send_message_retries_after_transient_failure_then_succeeds():
+    fake = FlakyThenOkClient()
+    ok = send_message("tok", "-100", "hello", dry_run=False, client=fake, sleeper=lambda s: None)
+    assert ok is True
+    assert len(fake.calls) == 2
+
+
+def test_send_message_never_raises_and_returns_false_after_exhausting_retries():
+    fake = AlwaysFailingClient()
+    ok = send_message("tok", "-100", "hello", dry_run=False, client=fake,
+                      retries=2, sleeper=lambda s: None)
+    assert ok is False
+    assert len(fake.calls) == 3
