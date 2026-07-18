@@ -42,7 +42,9 @@ def _parse_ts(raw: str, now: datetime) -> datetime:
 def parse_disclosures(data: dict, *, now: datetime) -> list[Disclosure]:
     out: list[Disclosure] = []
     for reply in (data or {}).get("Replies", []) or []:
-        rec = reply.get("pengumuman", reply) if isinstance(reply, dict) else {}
+        rec = reply.get("pengumuman", reply) if isinstance(reply, dict) else reply
+        if not isinstance(rec, dict):
+            continue
         title = _first(rec, ["JudulPengumuman", "Title", "title"])
         disc_id = _first(rec, ["Id2", "NoPengumuman"])
         if not title or not disc_id:

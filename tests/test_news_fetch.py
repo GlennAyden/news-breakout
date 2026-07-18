@@ -29,3 +29,9 @@ def test_fetch_gives_up_returns_empty():
 
     out = fetch_disclosures(now=NOW, retries=2, http_get=http_get, sleeper=lambda s: None)
     assert out == []
+
+
+def test_fetch_does_not_crash_on_null_pengumuman():
+    out = fetch_disclosures(now=NOW, http_get=lambda u, p: '{"Replies":[{"pengumuman": null}]}',
+                            sleeper=lambda s: None)
+    assert out == []

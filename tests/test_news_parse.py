@@ -42,3 +42,16 @@ def test_parse_extracts_fields_and_skips_empty():
 def test_parse_empty_replies():
     assert parse_disclosures({"Replies": []}, now=NOW) == []
     assert parse_disclosures({}, now=NOW) == []
+
+
+def test_parse_tolerates_non_dict_records():
+    data = {"Replies": [
+        {"pengumuman": None},
+        {"pengumuman": "oops"},
+        "not-a-dict",
+        {"pengumuman": {"Id2": "ok", "JudulPengumuman": "Dividen",
+                        "TglPengumuman": "2026-07-17T10:00:00", "KodeEmiten": "BBRI"}},
+    ]}
+    out = parse_disclosures(data, now=NOW)
+    assert len(out) == 1
+    assert out[0].disclosure_id == "ok"
