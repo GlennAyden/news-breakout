@@ -116,3 +116,14 @@ def test_run_scan_uses_injected_fetchers():
     assert result == ["ANTM"]
     assert len(sent) == 1
     store.close()
+
+
+def test_run_scan_warns_when_no_data(caplog):
+    import logging
+    store = DedupStore(":memory:")
+    with caplog.at_level(logging.WARNING):
+        result = run.run_scan(_settings(), store, now=NOW, sender=lambda *a, **k: True,
+                              daily_fetcher=lambda t, d: {}, intraday_fetcher=lambda t, d: {})
+    assert result == []
+    assert any("0 tickers" in r.message for r in caplog.records)
+    store.close()

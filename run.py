@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from datetime import datetime
@@ -14,6 +15,7 @@ from news_breakout.alerts.formatter import format_ticker_alert
 from news_breakout.alerts.telegram import send_message
 
 WIB = ZoneInfo("Asia/Jakarta")
+logger = logging.getLogger("news_breakout")
 
 
 def scan_once(settings: Settings, daily_data, intraday_data, store: DedupStore,
@@ -62,6 +64,11 @@ def run_scan(
 ) -> list[str]:
     daily = daily_fetcher(settings.watchlist, settings.history_days)
     intraday = intraday_fetcher(settings.watchlist, settings.intraday_period_days)
+    if not daily and not intraday:
+        logger.warning(
+            "fetch returned 0 tickers for %d watchlist symbols — likely rate-limit or data outage",
+            len(settings.watchlist),
+        )
     return scan_once(settings, daily, intraday, store, now=now, sender=sender)
 
 
