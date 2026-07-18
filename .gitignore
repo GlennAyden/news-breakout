@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Secrets & local config
+.env
+*.local.env
+!.env.example
+
+# Data, cache & state
+*.db
+*.sqlite
+*.sqlite3
+data_cache/
+cache/
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
