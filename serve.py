@@ -30,7 +30,7 @@ def main() -> None:
     def weekend_job() -> None:
         now = datetime.now(WIB)
         log.info("weekend deep-scan starting")
-        run_weekend_scan(settings, store, now=now)
+        run_weekend_scan(settings, now=now)
 
     sched = build_scheduler(settings, scan_job=scan_job, weekend_job=weekend_job)
     log.info("scheduler started; jobs: %s", [j.id for j in sched.get_jobs()])

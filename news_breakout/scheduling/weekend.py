@@ -18,7 +18,7 @@ def build_weekend_summary(alerts: list[TickerAlert], top_n: int = 10) -> str:
     return "\n".join(lines)
 
 
-def run_weekend_scan(settings, store, *, now, sender=send_message, daily_fetcher=fetch_daily_ohlcv) -> str:
+def run_weekend_scan(settings, *, now, sender=send_message, daily_fetcher=fetch_daily_ohlcv) -> str:
     liquid = filter_liquid_universe(
         settings.universe_candidates, daily_fetcher(settings.universe_candidates, settings.history_days),
         settings.min_price, settings.min_daily_value,

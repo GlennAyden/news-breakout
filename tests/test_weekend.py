@@ -2,7 +2,9 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from news_breakout.models import BreakoutSignal, TickerAlert
-from news_breakout.scheduling.weekend import build_weekend_summary
+from news_breakout.scheduling.weekend import build_weekend_summary, run_weekend_scan
+from news_breakout.config import Settings
+from tests.fixtures import make_ohlcv
 
 TS = datetime(2026, 7, 18, 8, 0, tzinfo=ZoneInfo("Asia/Jakarta"))
 
@@ -25,3 +27,30 @@ def test_summary_sorted_and_capped():
     assert "BBB" in lines[0]               # highest priority first
     assert "CCC" in lines[1]               # tie broken by rvol (5.0 > 2.0)
     assert "AAA" not in msg
+
+
+def _weekend_settings():
+    return Settings(
+        watchlist=["ANTM"], donchian_lookback=3, rvol_threshold=2.0, rvol_window=3,
+        history_days=120, range_lookback=3, range_max_width_pct=0.15, intraday_period_days=60,
+        telegram_bot_token="t", telegram_breakout_chat_id="-1", dry_run=True,
+        market_open="09:00", market_close="16:00", scan_interval_minutes=30,
+        weekend_scan_day="sat", holidays=[], universe_candidates=[],
+        min_price=50, min_daily_value=1_000_000_000,
+    )
+
+
+def test_run_weekend_scan_scans_watchlist_and_sends():
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    daily = {"ANTM": make_ohlcv(
+        highs=[110, 108, 110, 116], lows=[100, 101, 102, 108],
+        closes=[100, 100, 100, 115], volumes=[100, 100, 100, 300])}
+    summary = run_weekend_scan(_weekend_settings(), now=TS, sender=sender,
+                               daily_fetcher=lambda tickers, days: daily)
+    assert len(sent) == 1
+    assert "ANTM" in summary
