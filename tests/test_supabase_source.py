@@ -15,8 +15,9 @@ def _settings(monkeypatch, tmp_path):
 def test_rows_become_yfinance_shaped_frames(monkeypatch, tmp_path):
     s = _settings(monkeypatch, tmp_path)
     rows = [
-        {"ticker": "ANTM", "ts": "2026-07-16T02:00:00+00:00", "open": 1, "high": 3, "low": 1, "close": 2, "volume": 100},
+        # later date first so .sort_index() must recover chronological order
         {"ticker": "ANTM", "ts": "2026-07-17T02:00:00+00:00", "open": 2, "high": 4, "low": 2, "close": 3, "volume": 200},
+        {"ticker": "ANTM", "ts": "2026-07-16T02:00:00+00:00", "open": 1, "high": 3, "low": 1, "close": 2, "volume": 100},
         {"ticker": "BUMI", "ts": "2026-07-17T02:00:00+00:00", "open": 5, "high": 6, "low": 4, "close": 5, "volume": 50},
     ]
     captured = {}
@@ -69,6 +70,17 @@ def test_http_error_degrades_to_empty(monkeypatch, tmp_path):
         raise RuntimeError("network down")
 
     assert ss.load_daily_bars(s, ["ANTM"], http_get=boom) == {}
+
+
+def test_malformed_rows_degrade_to_empty(monkeypatch, tmp_path):
+    s = _settings(monkeypatch, tmp_path)
+
+    def fake_get(url, headers, params):
+        # 200 OK but a malformed row: missing the "close" key
+        return [{"ticker": "ANTM", "ts": "2026-07-17T02:00:00+00:00",
+                 "open": 1, "high": 2, "low": 1, "volume": 10}]
+
+    assert ss.load_daily_bars(s, ["ANTM"], http_get=fake_get) == {}
 
 
 def test_make_daily_fetcher_has_dropin_signature(monkeypatch, tmp_path):

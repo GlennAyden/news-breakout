@@ -20,7 +20,7 @@ def _default_http_get(url: str, headers: dict, params: dict) -> list:
     return resp.json()
 
 
-def _rows_to_frames(rows: list) -> dict:
+def _rows_to_frames(rows: list) -> dict[str, pd.DataFrame]:
     by_ticker: dict = {}
     for r in rows:
         by_ticker.setdefault(r["ticker"], []).append(r)
@@ -41,7 +41,7 @@ def _rows_to_frames(rows: list) -> dict:
     return out
 
 
-def _query(settings, interval: str, tickers: list, http_get, since) -> list:
+def _query(settings, interval: str, tickers: list, http_get, since) -> list[dict]:
     if not settings.supabase_url or not settings.supabase_key:
         logger.warning("supabase creds missing; returning no %s bars", interval)
         return []
@@ -67,12 +67,24 @@ def _query(settings, interval: str, tickers: list, http_get, since) -> list:
         return []
 
 
-def load_daily_bars(settings, tickers, *, http_get=None, since=None) -> dict:
-    return _rows_to_frames(_query(settings, "1d", tickers, http_get, since))
+def load_daily_bars(
+    settings, tickers, *, http_get=None, since=None
+) -> dict[str, pd.DataFrame]:
+    try:
+        return _rows_to_frames(_query(settings, "1d", tickers, http_get, since))
+    except Exception as exc:  # noqa: BLE001 — resilience: malformed rows degrade to empty
+        logger.warning("supabase daily bars unusable: %s", exc)
+        return {}
 
 
-def load_intraday_bars(settings, tickers, *, http_get=None, since=None) -> dict:
-    return _rows_to_frames(_query(settings, "60m", tickers, http_get, since))
+def load_intraday_bars(
+    settings, tickers, *, http_get=None, since=None
+) -> dict[str, pd.DataFrame]:
+    try:
+        return _rows_to_frames(_query(settings, "60m", tickers, http_get, since))
+    except Exception as exc:  # noqa: BLE001 — resilience: malformed rows degrade to empty
+        logger.warning("supabase intraday bars unusable: %s", exc)
+        return {}
 
 
 def make_daily_fetcher(settings, *, http_get=None):
