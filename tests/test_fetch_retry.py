@@ -34,3 +34,26 @@ def test_gives_up_after_retries():
     out = fetch_daily_ohlcv(["ANTM"], 10, downloader=empty, retries=2, sleeper=lambda s: None)
     assert len(calls) == 3
     assert out == {}
+
+
+def test_retries_on_exception_then_succeeds():
+    calls = []
+    good = _mi({"ANTM.JK": _one(3)})
+
+    def raising(tickers, period, interval, group_by, auto_adjust, progress, threads):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("rate limited")
+        return good
+
+    out = fetch_daily_ohlcv(["ANTM"], 10, downloader=raising, sleeper=lambda s: None)
+    assert len(calls) == 2
+    assert "ANTM" in out
+
+
+def test_all_exceptions_returns_empty():
+    def always_raise(*a, **k):
+        raise RuntimeError("boom")
+
+    out = fetch_daily_ohlcv(["ANTM"], 10, downloader=always_raise, retries=1, sleeper=lambda s: None)
+    assert out == {}

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import time
 
 import pandas as pd
+
+logger = logging.getLogger("news_breakout")
 
 _COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 _RETRY_DELAYS = [5, 15]  # seconds; index by attempt
@@ -29,16 +32,20 @@ def _fetch_ohlcv(
     jk = [f"{t}.JK" for t in tickers]
     result = {}
     for attempt in range(retries + 1):
-        raw = downloader(
-            jk,
-            period=period,
-            interval=interval,
-            group_by="ticker",
-            auto_adjust=False,
-            progress=False,
-            threads=True,
-        )
-        result = _extract(raw, tickers)
+        try:
+            raw = downloader(
+                jk,
+                period=period,
+                interval=interval,
+                group_by="ticker",
+                auto_adjust=False,
+                progress=False,
+                threads=True,
+            )
+            result = _extract(raw, tickers)
+        except Exception as exc:  # noqa: BLE001 — resilience layer: any fetch failure degrades to retry/empty
+            logger.warning("fetch attempt %d failed: %s", attempt + 1, exc)
+            result = {}
         if result:
             return result
         if attempt < retries:
