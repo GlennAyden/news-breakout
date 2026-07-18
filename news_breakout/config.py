@@ -54,6 +54,24 @@ def _load_env_file(env_path: str) -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
+def _normalize_supabase_url(raw: str) -> str:
+    """Tolerate a bare project ref or a scheme-less host in SUPABASE_URL.
+
+    Supabase project URLs are always ``https://<ref>.supabase.co``; users often
+    paste just the ref or drop the scheme. Normalize to a full URL (empty stays
+    empty so the reader's missing-creds short-circuit still applies).
+    """
+    u = (raw or "").strip().rstrip("/")
+    if not u:
+        return ""
+    if not u.startswith(("http://", "https://")):
+        u = "https://" + u
+    host = u.split("://", 1)[-1]
+    if "." not in host:  # bare project ref -> full supabase host
+        u = f"https://{host}.supabase.co"
+    return u
+
+
 def load_settings(
     config_path: str = "config/config.yaml", env_path: str = ".env"
 ) -> Settings:
@@ -96,6 +114,6 @@ def load_settings(
         portal_enabled=portal.get("enabled", False),
         portal_sources=portal.get("sources", []),
         portal_name_map=portal.get("name_map", {}),
-        supabase_url=os.environ.get("SUPABASE_URL", ""),
-        supabase_key=os.environ.get("SUPABASE_KEY", ""),
+        supabase_url=_normalize_supabase_url(os.environ.get("SUPABASE_URL", "")),
+        supabase_key=os.environ.get("SUPABASE_KEY", "").strip(),
     )

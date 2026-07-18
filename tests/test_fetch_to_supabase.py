@@ -9,6 +9,13 @@ fts = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(fts)
 
 
+def test_normalize_supabase_url():
+    assert fts._normalize_supabase_url("plqegxlzzedwwsluykxo") == "https://plqegxlzzedwwsluykxo.supabase.co"
+    assert fts._normalize_supabase_url("proj.supabase.co") == "https://proj.supabase.co"
+    assert fts._normalize_supabase_url("https://proj.supabase.co/") == "https://proj.supabase.co"
+    assert fts._normalize_supabase_url("") == ""
+
+
 def _frame(tz):
     idx = pd.to_datetime(["2026-07-17 09:00", "2026-07-17 10:00"])
     if tz:

@@ -17,6 +17,23 @@ _COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 _CHUNK = 500
 
 
+def _normalize_supabase_url(raw: str) -> str:
+    """Tolerate a bare project ref or a scheme-less host in SUPABASE_URL.
+
+    Mirrors news_breakout.config._normalize_supabase_url (kept standalone so
+    this script needs no package import when run by GitHub Actions).
+    """
+    u = (raw or "").strip().rstrip("/")
+    if not u:
+        return ""
+    if not u.startswith(("http://", "https://")):
+        u = "https://" + u
+    host = u.split("://", 1)[-1]
+    if "." not in host:  # bare project ref -> full supabase host
+        u = f"https://{host}.supabase.co"
+    return u
+
+
 def load_config(path: str = _CONFIG):
     with open(path, encoding="utf-8") as fh:
         raw = yaml.safe_load(fh)
@@ -95,8 +112,8 @@ def upsert(rows: list, url: str, key: str, *, poster=None) -> bool:
 def main() -> None:
     import yfinance as yf
 
-    url = os.environ["SUPABASE_URL"]
-    key = os.environ["SUPABASE_KEY"]
+    url = _normalize_supabase_url(os.environ["SUPABASE_URL"])
+    key = os.environ["SUPABASE_KEY"].strip()
     watchlist, history_days, intraday_days = load_config()
     rows = fetch_all(watchlist, history_days, intraday_days, yf.download)
     print(f"fetched {len(rows)} bars for {len(watchlist)} tickers")
