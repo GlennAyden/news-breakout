@@ -220,6 +220,21 @@ def test_parse_bisnis_extracts_title_link_and_date():
     assert second.timestamp == NOW - timedelta(hours=7)
 
 
+BISNIS_SECONDARY_LIST_HTML = """
+<a href="https://market.bisnis.com/read/20260718/1/1/a" class="artLink"><h4 class="artTitle">Judul Bersih A</h4></a>
+<a href="https://market.bisnis.com/read/20260718/2/2/b" class="artLink"><h4 class="artTitle">Judul Bersih B</h4><div class="artDate">2 jam yang lalu</div></a>
+"""
+
+
+def test_parse_bisnis_secondary_list_template_does_not_swallow_html():
+    items = parse_bisnis(BISNIS_SECONDARY_LIST_HTML, "market.bisnis.com", now=NOW)
+    assert len(items) == 2
+    assert items[0].title == "Judul Bersih A"
+    assert items[1].title == "Judul Bersih B"
+    assert len(items[0].title) <= 20
+    assert len(items[1].title) <= 20
+
+
 def test_parse_bisnis_defaults_to_now_when_no_date_in_window():
     html = """
 <a href="https://market.bisnis.com/read/1/no-date" class="artLink">

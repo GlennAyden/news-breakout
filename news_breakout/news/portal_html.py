@@ -123,8 +123,8 @@ def parse_emitennews(html: str, source: str, *, now: datetime) -> list[PortalNew
 
 _BISNIS_ITEM_RE = re.compile(
     r'<a\b(?=[^>]*\bhref=["\'](https://market\.bisnis\.com/read/[^"\']+)["\'])'
-    r'(?=[^>]*\bclass=["\'][^"\']*\bartLink\b[^"\']*["\'])'
-    r'[^>]*>\s*<h4\b[^>]*class=["\'][^"\']*\bartTitle\b[^"\']*["\'][^>]*>([\s\S]*?)</h4>\s*</a>',
+    r'(?=[^>]*\bclass=["\'][^"\']*\bartLink\b[^"\']*["\'])[^>]*>'
+    r'[\s\S]{0,200}?<h4\b[^>]*\bartTitle\b[^>]*>([\s\S]*?)</h4>',
     re.I,
 )
 _BISNIS_DATE_RE = re.compile(r'<div\b[^>]*class=["\'][^"\']*\bartDate\b[^"\']*["\'][^>]*>([\s\S]*?)</div>', re.I)
