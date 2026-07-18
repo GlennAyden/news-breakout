@@ -35,3 +35,9 @@ def test_fetch_does_not_crash_on_null_pengumuman():
     out = fetch_disclosures(now=NOW, http_get=lambda u, p: '{"Replies":[{"pengumuman": null}]}',
                             sleeper=lambda s: None)
     assert out == []
+
+
+def test_fetch_does_not_crash_on_scalar_replies():
+    out = fetch_disclosures(now=NOW, http_get=lambda u, p: '{"Replies": 123}',
+                            retries=1, sleeper=lambda s: None)
+    assert out == []

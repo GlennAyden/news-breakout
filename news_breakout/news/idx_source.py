@@ -85,7 +85,7 @@ def fetch_disclosures(page_size: int = 50, *, now, proxy: str = "", retries: int
             data = json.loads(text)
         except Exception:  # noqa: BLE001 — Cloudflare HTML / network / decode failure
             data = None
-        if isinstance(data, dict) and data.get("Replies") is not None:
+        if isinstance(data, dict) and isinstance(data.get("Replies"), list):
             return parse_disclosures(data, now=now)
         if attempt < retries:
             sleeper(_RETRY_DELAYS[min(attempt, len(_RETRY_DELAYS) - 1)])

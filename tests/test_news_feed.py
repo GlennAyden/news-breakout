@@ -47,3 +47,18 @@ def test_news_feed_sends_curated_and_dedups():
     assert second == []                             # deduped
     assert len(sent) == 2
     store.close()
+
+
+def test_news_feed_failed_send_not_marked():
+    store = DedupStore(":memory:")
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        return False
+
+    def fetcher(page_size, *, now, proxy="", retries=3, http_get=None, sleeper=None):
+        return [_disc("a", "Pembagian Dividen")]
+
+    first = run_news_feed(_settings(), store, now=NOW, sender=sender, fetcher=fetcher)
+    assert first == []
+    assert store.news_already_sent("a") is False   # failed send -> not marked, retries next poll
+    store.close()
