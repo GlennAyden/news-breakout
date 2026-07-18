@@ -41,15 +41,10 @@ def _rows_to_frames(rows: list) -> dict[str, pd.DataFrame]:
     return out
 
 
-def _query(settings, interval: str, tickers: list, http_get, since) -> list[dict]:
-    if not settings.supabase_url or not settings.supabase_key:
-        logger.warning("supabase creds missing; returning no %s bars", interval)
-        return []
-    if http_get is None:
-        http_get = _default_http_get
+def _query_one(settings, interval: str, ticker: str, http_get, since) -> list[dict]:
     params = {
         "interval": f"eq.{interval}",
-        "ticker": "in.(" + ",".join(tickers) + ")",
+        "ticker": f"eq.{ticker}",
         "order": "ts.asc",
         "select": "ticker,ts,open,high,low,close,volume",
     }
@@ -60,11 +55,27 @@ def _query(settings, interval: str, tickers: list, http_get, since) -> list[dict
         "Authorization": f"Bearer {settings.supabase_key}",
     }
     url = f"{settings.supabase_url}/rest/v1/price_bars"
-    try:
-        return http_get(url, headers, params) or []
-    except Exception as exc:  # noqa: BLE001 — resilience layer: degrade to empty on any failure
-        logger.warning("supabase %s query failed: %s", interval, exc)
+    return http_get(url, headers, params) or []
+
+
+def _query(settings, interval: str, tickers: list, http_get, since) -> list[dict]:
+    # Supabase PostgREST caps rows-per-request (default 1000); a single
+    # in.(...) request across the whole watchlist can silently truncate to
+    # the oldest rows and drop the newest bars. Query per ticker instead —
+    # each ticker's row count is far under any cap — and isolate failures
+    # so one bad ticker doesn't lose the rest.
+    if not settings.supabase_url or not settings.supabase_key:
+        logger.warning("supabase creds missing; returning no %s bars", interval)
         return []
+    if http_get is None:
+        http_get = _default_http_get
+    rows: list[dict] = []
+    for ticker in tickers:
+        try:
+            rows.extend(_query_one(settings, interval, ticker, http_get, since))
+        except Exception as exc:  # noqa: BLE001 — resilience layer: degrade to empty on any failure
+            logger.warning("supabase %s query failed for %s: %s", interval, ticker, exc)
+    return rows
 
 
 def load_daily_bars(

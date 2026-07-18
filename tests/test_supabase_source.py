@@ -20,22 +20,26 @@ def test_rows_become_yfinance_shaped_frames(monkeypatch, tmp_path):
         {"ticker": "ANTM", "ts": "2026-07-16T02:00:00+00:00", "open": 1, "high": 3, "low": 1, "close": 2, "volume": 100},
         {"ticker": "BUMI", "ts": "2026-07-17T02:00:00+00:00", "open": 5, "high": 6, "low": 4, "close": 5, "volume": 50},
     ]
-    captured = {}
+    calls = []
 
     def fake_get(url, headers, params):
-        captured["url"] = url
-        captured["headers"] = headers
-        captured["params"] = params
-        return rows
+        calls.append({"url": url, "headers": headers, "params": params})
+        # "eq.ANTM" -> "ANTM"
+        wanted = params["ticker"].split(".", 1)[1]
+        return [r for r in rows if r["ticker"] == wanted]
 
     out = ss.load_daily_bars(s, ["ANTM", "BUMI"], http_get=fake_get)
 
-    # correct endpoint + auth + filters
-    assert captured["url"] == "https://proj.supabase.co/rest/v1/price_bars"
-    assert captured["headers"]["apikey"] == "svc"
-    assert captured["headers"]["Authorization"] == "Bearer svc"
-    assert captured["params"]["interval"] == "eq.1d"
-    assert captured["params"]["ticker"] == "in.(ANTM,BUMI)"
+    # one request per ticker, never batched
+    assert len(calls) == 2
+    assert [c["params"]["ticker"] for c in calls] == ["eq.ANTM", "eq.BUMI"]
+
+    # correct endpoint + auth + filters on every call
+    for c in calls:
+        assert c["url"] == "https://proj.supabase.co/rest/v1/price_bars"
+        assert c["headers"]["apikey"] == "svc"
+        assert c["headers"]["Authorization"] == "Bearer svc"
+        assert c["params"]["interval"] == "eq.1d"
 
     # shape contract
     assert set(out) == {"ANTM", "BUMI"}
@@ -47,6 +51,20 @@ def test_rows_become_yfinance_shaped_frames(monkeypatch, tmp_path):
     assert df["Close"].tolist() == [2.0, 3.0]
     # chronological
     assert df.index.is_monotonic_increasing
+    assert len(out["BUMI"]) == 1
+
+
+def test_query_is_per_ticker_not_batched(monkeypatch, tmp_path):
+    s = _settings(monkeypatch, tmp_path)
+    seen = []
+
+    def fake_get(url, headers, params):
+        seen.append(params["ticker"])
+        return []
+
+    ss.load_daily_bars(s, ["ANTM", "BUMI", "CUAN"], http_get=fake_get)
+
+    assert seen == ["eq.ANTM", "eq.BUMI", "eq.CUAN"]
 
 
 def test_missing_creds_returns_empty(monkeypatch, tmp_path):
