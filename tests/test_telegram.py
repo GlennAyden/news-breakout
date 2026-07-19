@@ -68,3 +68,21 @@ def test_send_message_never_raises_and_returns_false_after_exhausting_retries():
                       retries=2, sleeper=lambda s: None)
     assert ok is False
     assert len(fake.calls) == 3
+
+
+def test_send_message_includes_parse_mode_and_disable_preview():
+    fake = FakeClient()
+    ok = send_message("tok", "-100", "<b>hi</b>", dry_run=False, client=fake,
+                      parse_mode="HTML", disable_preview=True)
+    assert ok is True
+    payload = fake.calls[0]["json"]
+    assert payload["parse_mode"] == "HTML"
+    assert payload["disable_web_page_preview"] is True
+
+
+def test_send_message_omits_parse_mode_by_default():
+    fake = FakeClient()
+    send_message("tok", "-100", "hi", dry_run=False, client=fake)
+    payload = fake.calls[0]["json"]
+    assert "parse_mode" not in payload
+    assert "disable_web_page_preview" not in payload

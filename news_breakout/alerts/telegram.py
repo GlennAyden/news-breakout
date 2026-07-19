@@ -16,6 +16,8 @@ def send_message(
     client=None,
     retries: int = 2,
     sleeper=time.sleep,
+    parse_mode: str | None = None,
+    disable_preview: bool = False,
 ) -> bool:
     if dry_run:
         print(f"[DRY-RUN] -> {chat_id}\n{text}\n")
@@ -24,12 +26,17 @@ def send_message(
     close_after = client is None
     if client is None:
         client = httpx.Client()
+    payload = {"chat_id": chat_id, "text": text}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+    if disable_preview:
+        payload["disable_web_page_preview"] = True
     try:
         for attempt in range(retries + 1):
             try:
                 resp = client.post(
                     f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                    json={"chat_id": chat_id, "text": text},
+                    json=payload,
                     timeout=15,
                 )
                 if resp.status_code == 200:
