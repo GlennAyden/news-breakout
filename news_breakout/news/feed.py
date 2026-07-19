@@ -31,7 +31,10 @@ def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_di
 def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_portal_news) -> list[str]:
     if not settings.portal_enabled:
         return []
-    items = fetcher(settings.portal_sources, settings.watchlist, settings.portal_name_map, now=now)
+    # match against the full universe (watchlist + candidates), not just the watchlist,
+    # so market news about any scanned liquid stock gets surfaced too
+    tickers = list(dict.fromkeys(settings.watchlist + settings.universe_candidates))
+    items = fetcher(settings.portal_sources, tickers, settings.portal_name_map, now=now)
     items.sort(key=lambda i: i.timestamp)
     sent = []
     for it in items:

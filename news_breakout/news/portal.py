@@ -20,6 +20,7 @@ class PortalNews:
     timestamp: datetime
     url: str
     source: str
+    summary: str = ""   # article body/description, used for ticker matching (not displayed)
 
 
 def _parse_pubdate(raw: str, now: datetime) -> datetime:
@@ -46,7 +47,9 @@ def parse_rss(xml_text: str, source: str, *, now: datetime) -> list[PortalNews]:
         link = (item.findtext("link") or "").strip()
         if not title or not link:
             continue
-        out.append(PortalNews("", title, _parse_pubdate(item.findtext("pubDate") or "", now), link, source))
+        summary = re.sub(r"<[^>]+>", " ", item.findtext("description") or "").strip()
+        out.append(PortalNews("", title, _parse_pubdate(item.findtext("pubDate") or "", now),
+                              link, source, summary=summary))
     return out
 
 
@@ -92,7 +95,9 @@ def fetch_portal_news(sources, watchlist, name_map, *, now, http_get=None) -> li
             continue
         parser = parsers.get(parser_name, parse_rss)
         for item in parser(text, _source_name(url), now=now):
-            tk = match_ticker(item.title, watchlist, name_map)
+            # match against title AND body so an emiten named only in the article
+            # text (not the headline) still gets tagged
+            tk = match_ticker(f"{item.title} {item.summary}".strip(), watchlist, name_map)
             if tk:
                 item.ticker = tk
                 out.append(item)

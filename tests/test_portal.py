@@ -67,6 +67,54 @@ def test_parse_rss_malformed_xml_returns_empty():
     assert parse_rss("<not-valid-xml", "kontan.co.id", now=NOW) == []
 
 
+RSS_DESC = """<?xml version="1.0"?>
+<rss version="2.0"><channel>
+<item>
+<title>Kabar emiten energi sore ini</title>
+<link>https://x.example/news/1</link>
+<description>PT Barito Pacific Tbk mengumumkan ekspansi &lt;b&gt;besar&lt;/b&gt;.</description>
+<pubDate>Fri, 17 Jul 2026 15:00:00 +0700</pubDate>
+</item>
+</channel></rss>
+"""
+
+
+# ---- A: title + description matching ---------------------------------------
+
+def test_parse_rss_captures_stripped_description():
+    items = parse_rss(RSS_DESC, "x.example", now=NOW)
+    assert len(items) == 1
+    assert "Barito Pacific" in items[0].summary
+    assert "<b>" not in items[0].summary and "besar" in items[0].summary
+
+
+def test_fetch_matches_company_in_description_not_title():
+    # title alone has no watchlist mention; the company name is only in the body
+    def http_get(url):
+        return RSS_DESC
+
+    out = fetch_portal_news(["https://x.example/rss"], ["BRPT"], {"barito pacific": "BRPT"},
+                            now=NOW, http_get=http_get)
+    assert len(out) == 1 and out[0].ticker == "BRPT"
+
+
+# ---- B: universe tickers included in matching ------------------------------
+
+def test_run_portal_feed_passes_watchlist_plus_universe_to_fetcher():
+    store = DedupStore(":memory:")
+    captured = {}
+
+    def fetcher(sources, tickers, name_map, *, now, http_get=None):
+        captured["tickers"] = list(tickers)
+        return []
+
+    settings = _settings(portal_enabled=True, portal_sources=["x"],
+                          watchlist=["ANTM"], universe_candidates=["TLKM", "BBCA"])
+    run_portal_feed(settings, store, now=NOW, sender=lambda *a, **k: True, fetcher=fetcher)
+    assert captured["tickers"] == ["ANTM", "TLKM", "BBCA"]
+    store.close()
+
+
 # ---- match_ticker -----------------------------------------------------------
 
 def test_match_ticker_by_company_name():
