@@ -238,6 +238,49 @@ def test_format_portal_contains_key_fields():
     assert "15:00" in msg
 
 
+def test_format_portal_hyperlinks_headline_no_raw_url():
+    item = PortalNews("ANTM", "Antam tebar dividen", datetime(2026, 7, 19, 14, 30, tzinfo=WIB),
+                      "https://cnbc/x", "cnbcindonesia.com", lead="Ringkasan singkat.")
+    msg = format_portal(item)
+    assert '<a href="https://cnbc/x">Antam tebar dividen</a>' in msg
+    assert "Ringkasan singkat." in msg
+    assert "\nhttps://cnbc/x" not in msg  # raw URL line removed
+
+
+def test_format_portal_shows_positive_chip():
+    item = PortalNews("ANTM", "judul", datetime(2026, 7, 19, 14, 30, tzinfo=WIB),
+                      "u", "s", sentiment="positif")
+    assert "\U0001F4C8 Positif" in format_portal(item)
+
+
+def test_format_portal_shows_negative_chip():
+    item = PortalNews("BBRI", "judul", datetime(2026, 7, 19, 14, 30, tzinfo=WIB),
+                      "u", "s", sentiment="negatif")
+    assert "\U0001F4C9 Negatif" in format_portal(item)
+
+
+def test_format_portal_hides_netral_and_empty_chip():
+    for sent in ("netral", ""):
+        item = PortalNews("X", "judul", datetime(2026, 7, 19, 14, 30, tzinfo=WIB),
+                          "u", "s", sentiment=sent)
+        msg = format_portal(item)
+        assert "\U0001F4C8" not in msg and "\U0001F4C9" not in msg
+
+
+def test_format_portal_corp_action_header():
+    item = PortalNews("ANTM", "judul", datetime(2026, 7, 19, 14, 30, tzinfo=WIB),
+                      "u", "s", corp_action=True)
+    assert "\U0001F6A8 AKSI KORPORASI · ANTM" in format_portal(item)
+
+
+def test_format_portal_escapes_html_in_dynamic_fields():
+    item = PortalNews("X", "Laba <b>naik</b> & untung", datetime(2026, 7, 19, 14, 30, tzinfo=WIB),
+                      "https://x/a?b=1&c=2", "s")
+    msg = format_portal(item)
+    assert "&lt;b&gt;naik&lt;/b&gt; &amp; untung" in msg
+    assert "b=1&amp;c=2" in msg
+
+
 # ---- run_portal_feed ----------------------------------------------------------
 
 def test_run_portal_feed_disabled_returns_empty_and_sends_nothing():

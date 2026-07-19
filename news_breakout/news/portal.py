@@ -20,8 +20,10 @@ class PortalNews:
     timestamp: datetime
     url: str
     source: str
-    summary: str = ""       # article body/description, used for matching (not displayed)
+    summary: str = ""       # RSS description, used for matching (not displayed)
     corp_action: bool = False  # title/body mentions a corporate-action keyword
+    lead: str = ""          # displayed extractive summary (1-2 sentences)
+    sentiment: str = ""     # "positif" | "negatif" | "netral" | ""
 
 
 def _parse_pubdate(raw: str, now: datetime) -> datetime:
