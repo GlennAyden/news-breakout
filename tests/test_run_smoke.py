@@ -242,6 +242,26 @@ def test_run_scan_sends_staleness_warning():
     store.close()
 
 
+def test_run_scan_skips_staleness_during_morning_grace():
+    # 15 min after open (within the grace window): even empty data must NOT warn stale,
+    # because a working fetcher hasn't produced today's first 60m bar yet.
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    early = datetime(2026, 7, 17, 9, 15, tzinfo=WIB)
+    run.run_scan(
+        _settings(), store, now=early, sender=sender,
+        daily_fetcher=lambda tickers, days: {},
+        intraday_fetcher=lambda tickers, days: {},
+        disclosure_fetcher=lambda page_size, *, now, proxy, retries=0: [])
+    assert not any(("basi" in m or "Tidak ada data" in m) for m in sent)
+    store.close()
+
+
 def test_run_scan_warns_when_no_data(caplog):
     import logging
     store = DedupStore(":memory:")

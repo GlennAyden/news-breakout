@@ -39,7 +39,7 @@ class Settings(BaseModel):
     portal_name_map: dict[str, str] = {}
     supabase_url: str = ""
     supabase_key: str = ""
-    price_staleness_max_minutes: int = 90
+    price_staleness_max_minutes: int = 150
 
 
 def _load_env_file(env_path: str) -> None:

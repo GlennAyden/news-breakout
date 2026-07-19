@@ -172,7 +172,10 @@ universe:
   min_daily_value: 1000000000   # Rp 1 billion avg daily transaction value
 
 monitoring:
-  price_staleness_max_minutes: 90   # warn to Telegram if the freshest 60m bar is older than this (fetcher likely failed)
+  # Warn to Telegram (once/day) if the freshest 60m bar is older than this — but only
+  # after market_open + this many minutes (skips the morning warm-up), and the value is
+  # kept above the IDX 12:00–13:30 lunch gap so a normal session never false-alarms.
+  price_staleness_max_minutes: 150
 
 news:
   curated_keywords:
@@ -227,7 +230,6 @@ portal:
     timah: TINS
     chandra asri: TPIA
     archi indonesia: ARCI
-    archi: ARCI
     bukit uluwatu villa: BUVA
     bukit uluwatu: BUVA
     sanurhasta mitra: MINA

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from news_breakout.config import Settings, load_settings
@@ -75,16 +75,28 @@ def run_scan(
     scan_symbols = list(dict.fromkeys(settings.watchlist + settings.universe_candidates))
     daily = daily_fetcher(scan_symbols, settings.history_days)
     intraday = intraday_fetcher(scan_symbols, settings.intraday_period_days)
-    warning = check_price_staleness(
-        daily, intraday, now, max_intraday_age_minutes=settings.price_staleness_max_minutes
-    )
-    if warning:
-        key = f"stale-{now.strftime('%Y-%m-%d')}"
-        if not store.news_already_sent(key) and sender(
-            settings.telegram_bot_token, settings.telegram_breakout_chat_id,
-            warning, dry_run=settings.dry_run,
-        ):
-            store.news_mark_sent(key)  # one staleness heads-up per trading day
+    # Staleness heads-up — but only once the session has had time to produce a
+    # fresh bar. Before market_open + threshold, the freshest 60m bar is still
+    # yesterday's close (a working fetcher hasn't made today's bar yet), so
+    # checking then would false-alarm every morning; the threshold (>lunch gap)
+    # also tolerates the IDX 12:00–13:30 break.
+    _oh, _om = (int(x) for x in settings.market_open.split(":"))
+    session_open = now.replace(hour=_oh, minute=_om, second=0, microsecond=0)
+    if now - session_open >= timedelta(minutes=settings.price_staleness_max_minutes):
+        try:
+            warning = check_price_staleness(
+                daily, intraday, now,
+                max_intraday_age_minutes=settings.price_staleness_max_minutes,
+            )
+        except Exception:  # noqa: BLE001 — a staleness check must never abort the scan
+            warning = None
+        if warning:
+            key = f"stale-{now.strftime('%Y-%m-%d')}"
+            if not store.news_already_sent(key) and sender(
+                settings.telegram_bot_token, settings.telegram_breakout_chat_id,
+                warning, dry_run=settings.dry_run,
+            ):
+                store.news_mark_sent(key)  # one staleness heads-up per trading day
     if not daily and not intraday:
         logger.warning(
             "fetch returned 0 tickers for %d scan symbols — likely rate-limit or data outage",
