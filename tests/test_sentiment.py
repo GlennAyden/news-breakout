@@ -44,3 +44,18 @@ def test_classify_length_mismatch_degrades_to_empty():
 
 def test_classify_empty_input_returns_empty_list():
     assert classify([], runner=lambda t: []) == []
+
+
+def test_classify_malformed_item_non_dict():
+    runner = lambda texts: ["oops", {"label": "positive", "score": 0.9}]
+    assert classify(["a", "b"], runner=runner) == ["netral", "positif"]
+
+
+def test_classify_malformed_item_non_numeric_score():
+    runner = lambda texts: [{"label": "positive", "score": "high"}, {"label": "negative", "score": 0.85}]
+    assert classify(["a", "b"], runner=runner) == ["netral", "negatif"]
+
+
+def test_classify_score_exactly_at_threshold():
+    runner = lambda texts: [{"label": "positive", "score": 0.6}]
+    assert classify(["x"], runner=runner, min_confidence=0.6) == ["positif"]

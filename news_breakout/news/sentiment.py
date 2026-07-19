@@ -51,11 +51,14 @@ def classify(texts: list[str], *, runner=None, min_confidence: float = 0.6) -> l
         return [""] * len(texts)
     out = []
     for item in raw:
-        item = item or {}
-        label = _normalize_label(item.get("label", ""))
-        score = float(item.get("score", 0.0) or 0.0)
-        if label in ("positif", "negatif") and score >= min_confidence:
-            out.append(label)
-        else:
+        try:
+            item = item or {}
+            label = _normalize_label(item.get("label", ""))
+            score = float(item.get("score", 0.0) or 0.0)
+            if label in ("positif", "negatif") and score >= min_confidence:
+                out.append(label)
+            else:
+                out.append("netral")
+        except (AttributeError, TypeError, ValueError):  # noqa: BLE001 — malformed items degrade to netral
             out.append("netral")
     return out
