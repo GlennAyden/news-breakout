@@ -111,3 +111,41 @@ def test_make_daily_fetcher_has_dropin_signature(monkeypatch, tmp_path):
     fetch = ss.make_daily_fetcher(s, http_get=fake_get)
     out = fetch(["ANTM"], 120)  # same (tickers, history_days) call as run_scan uses
     assert "ANTM" in out and list(out["ANTM"].columns) == ["Open", "High", "Low", "Close", "Volume"]
+
+
+def test_query_reuses_single_pooled_client(monkeypatch, tmp_path):
+    # Production path (http_get=None) must reuse ONE httpx.Client across all
+    # per-ticker requests (keep-alive), not open a fresh connection per ticker.
+    s = _settings(monkeypatch, tmp_path)
+    seen = {"clients": 0, "closed": 0, "tickers": []}
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return []
+
+    class _FakeClient:
+        def __init__(self, **kwargs):
+            seen["clients"] += 1
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            seen["closed"] += 1
+            return False
+
+        def get(self, url, headers=None, params=None):
+            seen["tickers"].append(params["ticker"])
+            return _Resp()
+
+    import httpx
+    monkeypatch.setattr(httpx, "Client", _FakeClient)
+
+    ss.load_daily_bars(s, ["ANTM", "BUMI", "CUAN"])
+
+    assert seen["clients"] == 1                                  # one client for all 3 tickers
+    assert seen["closed"] == 1                                   # context-managed, released
+    assert seen["tickers"] == ["eq.ANTM", "eq.BUMI", "eq.CUAN"]  # still one request per ticker

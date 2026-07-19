@@ -42,6 +42,24 @@ def _weekend_settings():
     )
 
 
+def test_run_weekend_scan_fetches_daily_once():
+    # the candidate universe must be fetched once (single daily_fetcher call for the
+    # watchlist UNION candidates), not twice (once for the liquid filter, once for the scan)
+    calls = []
+
+    def counting_fetcher(tickers, days):
+        calls.append(list(tickers))
+        return {t: make_ohlcv(
+            highs=[110, 108, 110, 116], lows=[100, 101, 102, 108],
+            closes=[100, 100, 100, 115],
+            volumes=[20_000_000, 20_000_000, 20_000_000, 30_000_000]) for t in tickers}
+
+    settings = _weekend_settings().model_copy(update={"universe_candidates": ["BBCA"]})
+    run_weekend_scan(settings, now=TS, sender=lambda *a, **k: True, daily_fetcher=counting_fetcher)
+    assert len(calls) == 1                    # single fetch, not two
+    assert set(calls[0]) == {"ANTM", "BBCA"}  # watchlist UNION candidates, fetched once
+
+
 def test_run_weekend_scan_scans_watchlist_and_sends():
     sent = []
 

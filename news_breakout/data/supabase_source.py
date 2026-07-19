@@ -12,14 +12,6 @@ WIB = ZoneInfo("Asia/Jakarta")
 _COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 
 
-def _default_http_get(url: str, headers: dict, params: dict) -> list:
-    import httpx
-
-    resp = httpx.get(url, headers=headers, params=params, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
-
-
 def _rows_to_frames(rows: list) -> dict[str, pd.DataFrame]:
     by_ticker: dict = {}
     for r in rows:
@@ -58,6 +50,16 @@ def _query_one(settings, interval: str, ticker: str, http_get, since) -> list[di
     return http_get(url, headers, params) or []
 
 
+def _collect_rows(settings, interval: str, tickers: list, http_get, since) -> list[dict]:
+    rows: list[dict] = []
+    for ticker in tickers:
+        try:
+            rows.extend(_query_one(settings, interval, ticker, http_get, since))
+        except Exception as exc:  # noqa: BLE001 — resilience layer: degrade to empty on any failure
+            logger.warning("supabase %s query failed for %s: %s", interval, ticker, exc)
+    return rows
+
+
 def _query(settings, interval: str, tickers: list, http_get, since) -> list[dict]:
     # Supabase PostgREST caps rows-per-request (default 1000); a single
     # in.(...) request across the whole watchlist can silently truncate to
@@ -67,15 +69,20 @@ def _query(settings, interval: str, tickers: list, http_get, since) -> list[dict
     if not settings.supabase_url or not settings.supabase_key:
         logger.warning("supabase creds missing; returning no %s bars", interval)
         return []
-    if http_get is None:
-        http_get = _default_http_get
-    rows: list[dict] = []
-    for ticker in tickers:
-        try:
-            rows.extend(_query_one(settings, interval, ticker, http_get, since))
-        except Exception as exc:  # noqa: BLE001 — resilience layer: degrade to empty on any failure
-            logger.warning("supabase %s query failed for %s: %s", interval, ticker, exc)
-    return rows
+    if http_get is not None:  # injected (e.g. tests): use as-is
+        return _collect_rows(settings, interval, tickers, http_get, since)
+    # Production: reuse ONE keep-alive client across all per-ticker requests
+    # (~141 tickers x 2 intervals per scan) instead of a fresh TCP+TLS
+    # handshake per ticker.
+    import httpx
+
+    with httpx.Client(timeout=30) as client:
+        def pooled_get(url, headers, params):
+            resp = client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            return resp.json()
+
+        return _collect_rows(settings, interval, tickers, pooled_get, since)
 
 
 def load_daily_bars(

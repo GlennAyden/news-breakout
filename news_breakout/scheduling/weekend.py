@@ -19,12 +19,16 @@ def build_weekend_summary(alerts: list[TickerAlert], top_n: int = 10) -> str:
 
 
 def run_weekend_scan(settings, *, now, sender=send_message, daily_fetcher=fetch_daily_ohlcv) -> str:
+    # Fetch daily ONCE for the watchlist UNION candidates, then reuse that dict for
+    # both the liquidity filter and the scan (previously the candidates were fetched
+    # twice — once for the filter, once for the scan).
+    symbols = list(dict.fromkeys(settings.watchlist + settings.universe_candidates))
+    daily = daily_fetcher(symbols, settings.history_days)
     liquid = filter_liquid_universe(
-        settings.universe_candidates, daily_fetcher(settings.universe_candidates, settings.history_days),
+        settings.universe_candidates, daily,
         settings.min_price, settings.min_daily_value,
     ) if settings.universe_candidates else []
     tickers = list(dict.fromkeys(settings.watchlist + liquid))
-    daily = daily_fetcher(tickers, settings.history_days)
     alerts = []
     for t in tickers:
         if t not in daily:
