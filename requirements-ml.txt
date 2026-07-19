@@ -1,0 +1,6 @@
+# VPS-only extras for the sentiment subprocess (scripts/score_sentiment.py).
+# NOT used by the GitHub Actions price job (which pins its own deps inline).
+# Install on the VPS with the CPU torch index:
+#   pip install -r requirements-ml.txt --extra-index-url https://download.pytorch.org/whl/cpu
+transformers==4.44.2
+torch==2.4.1
