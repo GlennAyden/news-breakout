@@ -305,7 +305,7 @@ def test_run_portal_feed_enabled_sends_and_dedups_on_second_run():
     store = DedupStore(":memory:")
     sent = []
 
-    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **kwargs):
         sent.append((chat_id, text))
         return True
 
@@ -319,13 +319,130 @@ def test_run_portal_feed_enabled_sends_and_dedups_on_second_run():
 
     settings = _settings(portal_enabled=True, portal_sources=["https://www.kontan.co.id/rss"],
                           portal_name_map={"barito pacific": "BRPT"})
+    kw = dict(extractor=lambda url: "", classifier=lambda texts, **k: [""] * len(texts))
 
-    first = run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher)
+    first = run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher, **kw)
     assert len(first) == 2
     assert len(sent) == 2
     assert all(chat_id == "-200" for chat_id, _ in sent)
 
-    second = run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher)
+    second = run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher, **kw)
     assert second == []
     assert len(sent) == 2   # no new sends
+    store.close()
+
+
+def test_run_portal_feed_enriches_lead_and_sentiment_and_sends_html():
+    store = DedupStore(":memory:")
+    calls = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **kwargs):
+        calls.append({"text": text, "kwargs": kwargs})
+        return True
+
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+        return [PortalNews("ANTM", "Antam tebar dividen", NOW, "https://x/1", "cnbc")]
+
+    settings = _settings(portal_enabled=True, portal_sources=["x"])
+    run_portal_feed(
+        settings, store, now=NOW, sender=sender, fetcher=fetcher,
+        extractor=lambda url: "Antam bagi dividen Rp120. Bayar Agustus.",
+        classifier=lambda texts, **k: ["positif"] * len(texts),
+    )
+    assert len(calls) == 1
+    assert "Antam bagi dividen Rp120." in calls[0]["text"]
+    assert "\U0001F4C8 Positif" in calls[0]["text"]
+    assert calls[0]["kwargs"].get("parse_mode") == "HTML"
+    assert calls[0]["kwargs"].get("disable_preview") is True
+    store.close()
+
+
+def test_run_portal_feed_extractor_failure_falls_back_to_rss_summary():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **kwargs):
+        sent.append(text)
+        return True
+
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+        return [PortalNews("ANTM", "judul", NOW, "https://x/1", "cnbc",
+                           summary="Ringkasan dari deskripsi RSS.")]
+
+    def boom(url):
+        raise RuntimeError("fetch down")
+
+    settings = _settings(portal_enabled=True, portal_sources=["x"])
+    run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher,
+                    extractor=boom, classifier=lambda texts, **k: [""] * len(texts))
+    assert len(sent) == 1
+    assert "Ringkasan dari deskripsi RSS." in sent[0]
+    store.close()
+
+
+def test_run_portal_feed_classifier_failure_still_sends_without_chip():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **kwargs):
+        sent.append(text)
+        return True
+
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+        return [PortalNews("ANTM", "judul", NOW, "https://x/1", "cnbc")]
+
+    def boom(texts, **k):
+        raise RuntimeError("subprocess died")
+
+    settings = _settings(portal_enabled=True, portal_sources=["x"])
+    run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher,
+                    extractor=lambda url: "isi", classifier=boom)
+    assert len(sent) == 1
+    assert "\U0001F4C8" not in sent[0] and "\U0001F4C9" not in sent[0]
+    store.close()
+
+
+def test_run_portal_feed_caps_sends_per_run():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **kwargs):
+        sent.append(text)
+        return True
+
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+        return [PortalNews(f"T{i}", f"judul {i}", NOW, f"https://x/{i}", "cnbc") for i in range(5)]
+
+    settings = _settings(portal_enabled=True, portal_sources=["x"], portal_max_per_run=2)
+    run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher,
+                    extractor=lambda url: "", classifier=lambda texts, **k: [""] * len(texts))
+    assert len(sent) == 2
+    store.close()
+
+
+def test_run_portal_feed_orders_corp_then_strong_sentiment_then_rest():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **kwargs):
+        sent.append(text)
+        return True
+
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+        return [
+            PortalNews("AAA", "biasa netral", NOW, "https://x/1", "s", corp_action=False),
+            PortalNews("BBB", "aksi korporasi", NOW, "https://x/2", "s", corp_action=True),
+            PortalNews("CCC", "kabar positif", NOW, "https://x/3", "s", corp_action=False),
+        ]
+
+    def classifier(texts, **k):
+        m = {"biasa netral": "netral", "aksi korporasi": "netral", "kabar positif": "positif"}
+        return [m.get(t, "netral") for t in texts]
+
+    settings = _settings(portal_enabled=True, portal_sources=["x"])
+    run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher,
+                    extractor=lambda url: "", classifier=classifier)
+    assert "aksi korporasi" in sent[0]   # corp action first
+    assert "kabar positif" in sent[1]     # then strong sentiment
+    assert "biasa netral" in sent[2]      # then the rest
     store.close()

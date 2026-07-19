@@ -28,22 +28,58 @@ def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_di
     return sent_ids
 
 
-def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_portal_news) -> list[str]:
+def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_portal_news,
+                    extractor=None, classifier=None) -> list[str]:
     if not settings.portal_enabled:
         return []
+    from news_breakout.news.extract import fetch_article_text, lead_summary
+    from news_breakout.news.portal import _default_http_get
+    from news_breakout.news.sentiment import classify as _classify
+
+    if extractor is None:
+        def extractor(url):
+            return fetch_article_text(url, http_get=_default_http_get)
+    if classifier is None:
+        classifier = _classify
+
     # match against the full universe (watchlist + candidates), not just the watchlist,
     # so market news about any scanned liquid stock gets surfaced too
     tickers = list(dict.fromkeys(settings.watchlist + settings.universe_candidates))
     items = fetcher(settings.portal_sources, tickers, settings.portal_name_map, now=now,
                     corp_keywords=settings.curated_keywords)
-    # corporate actions first (highest signal), then oldest -> newest within each tier
-    items.sort(key=lambda i: (not i.corp_action, i.timestamp))
+
+    # extractive summary from the full article body (fall back to the RSS description)
+    for it in items:
+        try:
+            body = extractor(it.url)
+        except Exception:  # noqa: BLE001 — a fetch failure must not drop the item
+            body = ""
+        it.lead = lead_summary(body or it.summary, settings.portal_summary_sentences)
+
+    # optional sentiment tag; any failure degrades to no tag, news still flows
+    if settings.sentiment_enabled and items:
+        try:
+            labels = classifier([it.lead or it.title for it in items],
+                                min_confidence=settings.sentiment_min_confidence)
+        except Exception:  # noqa: BLE001
+            labels = [""] * len(items)
+        if len(labels) == len(items):
+            for it, lab in zip(items, labels):
+                it.sentiment = lab
+
+    # corporate actions first, then strong sentiment, then oldest -> newest
+    strong = {"positif": 0, "negatif": 0}
+    items.sort(key=lambda i: (not i.corp_action, strong.get(i.sentiment, 1), i.timestamp))
+
     sent = []
     for it in items:
+        if len(sent) >= settings.portal_max_per_run:
+            break
         if store.news_already_sent(it.url):
             continue
         if not sender(settings.telegram_bot_token, settings.telegram_news_chat_id,
-                      format_portal(it), dry_run=settings.dry_run):
+                      format_portal(it), dry_run=settings.dry_run,
+                      parse_mode="HTML", disable_preview=True):
             continue
         store.news_mark_sent(it.url)
         sent.append(it.url)
