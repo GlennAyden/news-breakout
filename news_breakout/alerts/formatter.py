@@ -38,6 +38,30 @@ _SIGNAL_LABEL = {
     "wyckoff_range_breakout": "Wyckoff range breakout",
 }
 
+_TIMEFRAME_WEIGHT = {"1D": 3, "4H": 2, "1H": 1}
+
+
+def _primary_signal(signals: list[BreakoutSignal]) -> BreakoutSignal:
+    """Pick the signal with the highest timeframe weight (1D>4H>1H); tie-break by highest level."""
+    return max(
+        signals,
+        key=lambda s: (_TIMEFRAME_WEIGHT.get(s.timeframe, 0), s.level),
+    )
+
+
+def _trade_plan_line(alert: TickerAlert) -> str:
+    primary = _primary_signal(alert.signals)
+    entry = primary.price
+    level = primary.level
+    if level >= entry:
+        return f"📍 Entry ~{_rupiah(entry)}"
+    risk = (entry - level) / entry * 100
+    target = entry + 2 * (entry - level)
+    return (
+        f"📍 Rencana: Entry ~{_rupiah(entry)} · Invalidasi <{_rupiah(level)} "
+        f"· Risk {risk:.1f}% · Target 2R ~{_rupiah(target)}"
+    )
+
 
 def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None) -> str:
     price = alert.signals[0].price
@@ -53,6 +77,7 @@ def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None) 
         lines.append(
             f"• TF {s.timeframe}: {label} · level {_rupiah(s.level)} · RVOL {s.rvol:.1f}× {arrow}"
         )
+    lines.append(_trade_plan_line(alert))
     if catalyst is not None:
         lines.append(
             f"📰 Katalis: {catalyst.title} ({_time_ago(catalyst.timestamp, alert.timestamp)})"

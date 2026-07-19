@@ -47,9 +47,132 @@ schedule:
   holidays: []   # IDX holiday dates as "YYYY-MM-DD"; fill these in yearly
 
 universe:
-  candidates: []            # tickers to consider beyond the watchlist (populated later)
+  # Liquid IDX universe scanned IN ADDITION to the watchlist (LQ45/IDX80 + other
+  # high-transaction-value names). These are filtered live by min_price +
+  # min_daily_value; the watchlist is always scanned unconditionally.
+  candidates:
+    - AADI
+    - AALI
+    - ACES
+    - ADMR
+    - ADRO
+    - AGRO
+    - AKRA
+    - AMAR
+    - AMMN
+    - AMRT
+    - APLN
+    - ARTO
+    - ASII
+    - AUTO
+    - BANK
+    - BBCA
+    - BBHI
+    - BBKP
+    - BBNI
+    - BBRI
+    - BBTN
+    - BELI
+    - BEST
+    - BJBR
+    - BJTM
+    - BKSL
+    - BMRI
+    - BNGA
+    - BNLI
+    - BRIS
+    - BSDE
+    - BSSR
+    - BUKA
+    - CBDK
+    - CDIA
+    - CMRY
+    - CPIN
+    - CTRA
+    - CYBR
+    - DCII
+    - DILD
+    - DMAS
+    - DOID
+    - DSNG
+    - ELSA
+    - EMTK
+    - ERAA
+    - ESSA
+    - EXCL
+    - FREN
+    - GEMS
+    - GGRM
+    - GJTL
+    - GOTO
+    - HEAL
+    - HMSP
+    - HRTA
+    - ICBP
+    - IMAS
+    - INCO
+    - INDF
+    - INDY
+    - INKP
+    - INTP
+    - ISAT
+    - ITMG
+    - JPFA
+    - JSMR
+    - KAEF
+    - KIJA
+    - KLBF
+    - KOKA
+    - KPIG
+    - LPKR
+    - LPPF
+    - LSIP
+    - MAIN
+    - MAPA
+    - MAPI
+    - MBAP
+    - MBMA
+    - MDKA
+    - MEGA
+    - MERK
+    - MIDI
+    - MIKA
+    - MNCN
+    - MYOH
+    - MYOR
+    - NCKL
+    - PGAS
+    - PGEO
+    - PNBN
+    - PNLF
+    - PRDA
+    - PTBA
+    - PWON
+    - RALS
+    - ROTI
+    - SCMA
+    - SGRO
+    - SIDO
+    - SILO
+    - SIMP
+    - SMBR
+    - SMGR
+    - SMRA
+    - SSIA
+    - TAPG
+    - TBIG
+    - TLKM
+    - TOWR
+    - TSPC
+    - ULTJ
+    - UNTR
+    - UNVR
+    - WIIM
   min_price: 50
   min_daily_value: 1000000000   # Rp 1 billion avg daily transaction value
+
+monitoring:
+  price_staleness_max_minutes: 90   # warn to Telegram if the freshest 60m bar is older than this (fetcher likely failed)
 
 news:
   curated_keywords:
@@ -76,17 +199,14 @@ news:
   priority_boost: 3.0
 
 portal:
-  enabled: false          # opt-in; set true after reviewing sources + name_map
-  sources:                # market-news feeds: RSS + HTML scrapers (adapted from NexaQuant)
+  enabled: true           # ticker-matched market news -> News channel
+  sources:                # VPS-reachable feeds only (Kontan RSS + Bisnis/Investor HTML dropped: 403 from the datacenter IP)
     - {url: https://www.cnbcindonesia.com/market/rss, parser: rss}
     - {url: https://www.antaranews.com/rss/ekonomi.xml, parser: rss}
     - {url: https://www.idxchannel.com/rss, parser: rss}
-    - {url: https://investasi.kontan.co.id/rss, parser: rss}
     - {url: https://katadata.co.id/rss/finansial, parser: rss}
     - {url: https://emitentrust.com/category/stock-and-market/feed/, parser: rss}
     - {url: https://emitennews.com/category/emiten, parser: emitennews}
-    - {url: https://market.bisnis.com/bursa-saham, parser: bisnis}
-    - {url: https://investor.id/market/corporate-action, parser: investor}
   name_map:               # lowercase company name -> ticker; extend/verify for your watchlist
     aneka tambang: ANTM
     antam: ANTM
@@ -106,6 +226,19 @@ portal:
     rukun raharja: RAJA
     timah: TINS
     chandra asri: TPIA
+    archi indonesia: ARCI
+    archi: ARCI
+    bukit uluwatu villa: BUVA
+    bukit uluwatu: BUVA
+    sanurhasta mitra: MINA
+    sanurhasta: MINA
+    raharja energi cepu: RATU
+    energi cepu: RATU
+    tbs energi utama: TOBA
+    toba bara sejahtra: TOBA
+    vktr teknologi mobilitas: VKTR
+    vktr: VKTR
+    solusi sinergi digital: WIFI
 
 # Price data (M6): the VPS reads OHLCV from Supabase, filled by a GitHub Actions
 # fetcher. Set these in the environment / VPS .env (never commit real values):

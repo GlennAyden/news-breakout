@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -194,6 +194,51 @@ def test_run_scan_tolerates_disclosure_fetch_failure():
     assert len(sent) == 1
     assert "🚨" in sent[0]
     assert "🔥" not in sent[0]
+    store.close()
+
+
+def test_run_scan_scans_liquid_universe():
+    # a liquid universe candidate (not in the watchlist) that breaks out gets alerted
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    s = _settings().model_copy(update={"universe_candidates": ["BBCA"]})
+    # BBCA: liquid (value >> min_daily_value) + breakout; watchlist ANTM has no data this run
+    bbca = make_ohlcv(
+        highs=[110, 108, 110, 116], lows=[100, 101, 102, 108],
+        closes=[100, 100, 100, 115],
+        volumes=[10_000_000, 10_000_000, 10_000_000, 30_000_000])
+    result = run.run_scan(
+        s, store, now=NOW, sender=sender,
+        daily_fetcher=lambda tickers, days: {"BBCA": bbca},
+        intraday_fetcher=lambda tickers, days: {},
+        disclosure_fetcher=lambda page_size, *, now, proxy, retries=0: [])
+    assert "BBCA" in result
+    store.close()
+
+
+def test_run_scan_sends_staleness_warning():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    stale_idx = pd.DatetimeIndex([NOW - timedelta(hours=3)])
+    intraday = {"ANTM": pd.DataFrame(
+        {"Open": [100.0], "High": [101.0], "Low": [99.0], "Close": [100.0], "Volume": [100]},
+        index=stale_idx)}
+    run.run_scan(
+        _settings(), store, now=NOW, sender=sender,
+        daily_fetcher=lambda tickers, days: {},
+        intraday_fetcher=lambda tickers, days: intraday,
+        disclosure_fetcher=lambda page_size, *, now, proxy, retries=0: [])
+    assert any("basi" in m for m in sent)
     store.close()
 
 

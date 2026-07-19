@@ -44,7 +44,8 @@ def main() -> None:
     def weekend_job() -> None:
         now = datetime.now(WIB)
         log.info("weekend deep-scan starting")
-        run_weekend_scan(settings, now=now)
+        # read prices from Supabase (Yahoo is blocked from the VPS datacenter IP)
+        run_weekend_scan(settings, now=now, daily_fetcher=make_daily_fetcher(settings))
 
     def news_job() -> None:
         now = datetime.now(WIB)

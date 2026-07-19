@@ -1,5 +1,6 @@
 import pandas as pd
 import importlib.util
+import textwrap
 from pathlib import Path
 
 _spec = importlib.util.spec_from_file_location(
@@ -7,6 +8,40 @@ _spec = importlib.util.spec_from_file_location(
 )
 fts = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(fts)
+
+
+def test_load_config_returns_watchlist_history_intraday_and_universe_candidates(tmp_path):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(textwrap.dedent("""\
+        watchlist:
+          - ANTM
+          - BUMI
+        data:
+          history_days: 120
+          intraday_period_days: 60
+        universe:
+          candidates:
+            - BBCA
+            - BBRI
+        """), encoding="utf-8")
+    watchlist, history_days, intraday_days, universe_candidates = fts.load_config(str(cfg))
+    assert watchlist == ["ANTM", "BUMI"]
+    assert history_days == 120
+    assert intraday_days == 60
+    assert universe_candidates == ["BBCA", "BBRI"]
+
+
+def test_load_config_defaults_universe_candidates_to_empty_list(tmp_path):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(textwrap.dedent("""\
+        watchlist:
+          - ANTM
+        data:
+          history_days: 120
+          intraday_period_days: 60
+        """), encoding="utf-8")
+    _, _, _, universe_candidates = fts.load_config(str(cfg))
+    assert universe_candidates == []
 
 
 def test_normalize_supabase_url():

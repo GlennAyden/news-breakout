@@ -23,3 +23,21 @@ def filter_liquid_universe(
             continue
         out.append(t)
     return out
+
+
+def resolve_scan_tickers(
+    watchlist: list[str],
+    candidates: list[str],
+    daily_data: dict[str, pd.DataFrame],
+    min_price: float,
+    min_daily_value: float,
+) -> list[str]:
+    """Full watchlist (always, unfiltered) + liquid candidates not already
+    in the watchlist, order-preserving, deduped."""
+    out = list(watchlist)
+    watchlist_set = set(watchlist)
+    liquid_candidates = filter_liquid_universe(candidates, daily_data, min_price, min_daily_value)
+    for t in liquid_candidates:
+        if t not in watchlist_set:
+            out.append(t)
+    return out

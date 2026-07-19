@@ -38,7 +38,8 @@ def load_config(path: str = _CONFIG):
     with open(path, encoding="utf-8") as fh:
         raw = yaml.safe_load(fh)
     data = raw.get("data", {})
-    return raw["watchlist"], data["history_days"], data["intraday_period_days"]
+    universe_candidates = raw.get("universe", {}).get("candidates", [])
+    return raw["watchlist"], data["history_days"], data["intraday_period_days"], universe_candidates
 
 
 def _f(v):
@@ -114,9 +115,10 @@ def main() -> None:
 
     url = _normalize_supabase_url(os.environ["SUPABASE_URL"])
     key = os.environ["SUPABASE_KEY"].strip()
-    watchlist, history_days, intraday_days = load_config()
-    rows = fetch_all(watchlist, history_days, intraday_days, yf.download)
-    print(f"fetched {len(rows)} bars for {len(watchlist)} tickers")
+    watchlist, history_days, intraday_days, universe_candidates = load_config()
+    tickers = list(dict.fromkeys(watchlist + universe_candidates))
+    rows = fetch_all(tickers, history_days, intraday_days, yf.download)
+    print(f"fetched {len(rows)} bars for {len(tickers)} tickers")
     if not rows:
         print("ERROR: 0 bars fetched — aborting upsert (likely a Yahoo outage)", file=sys.stderr)
         sys.exit(1)

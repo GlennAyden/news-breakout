@@ -62,3 +62,32 @@ def test_format_ticker_alert_with_catalyst_shows_fire_and_katalis():
     assert "Katalis" in msg
     assert "Right Issue Announcement" in msg
     assert "jam lalu" in msg
+
+
+def test_format_ticker_alert_trade_plan_normal_breakout():
+    ts = datetime(2026, 7, 17, 15, 30, tzinfo=ZoneInfo("Asia/Jakarta"))
+    sigs = [
+        BreakoutSignal("ANTM", "1D", "resistance_breakout", 1500.0, 3.4, 1480.0, 2.7, ts),
+        BreakoutSignal("ANTM", "4H", "wyckoff_range_breakout", 1500.0, 3.4, 1450.0, 2.1, ts),
+    ]
+    alert = TickerAlert("ANTM", sigs, priority=5.0, timestamp=ts)
+    msg = format_ticker_alert(alert)
+    # primary = 1D signal (highest timeframe weight): entry=1500, level=1480
+    # risk = (1500-1480)/1500*100 = 1.3%; target = 1500 + 2*20 = 1540
+    assert "📍 Rencana" in msg
+    assert "Entry ~1.500" in msg
+    assert "Invalidasi <1.480" in msg
+    assert "Risk 1.3%" in msg
+    assert "Target 2R ~1.540" in msg
+
+
+def test_format_ticker_alert_trade_plan_degenerate_level_does_not_crash():
+    ts = datetime(2026, 7, 17, 15, 30, tzinfo=ZoneInfo("Asia/Jakarta"))
+    sigs = [
+        BreakoutSignal("ANTM", "1D", "resistance_breakout", 1500.0, 3.4, 1550.0, 2.7, ts),
+    ]
+    alert = TickerAlert("ANTM", sigs, priority=5.0, timestamp=ts)
+    msg = format_ticker_alert(alert)
+    assert "📍 Entry ~1.500" in msg
+    assert "Rencana" not in msg
+    assert "Risk" not in msg

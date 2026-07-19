@@ -39,6 +39,7 @@ class Settings(BaseModel):
     portal_name_map: dict[str, str] = {}
     supabase_url: str = ""
     supabase_key: str = ""
+    price_staleness_max_minutes: int = 90
 
 
 def _load_env_file(env_path: str) -> None:
@@ -116,4 +117,5 @@ def load_settings(
         portal_name_map=portal.get("name_map", {}),
         supabase_url=_normalize_supabase_url(os.environ.get("SUPABASE_URL", "")),
         supabase_key=os.environ.get("SUPABASE_KEY", "").strip(),
+        price_staleness_max_minutes=raw.get("monitoring", {}).get("price_staleness_max_minutes", 90),
     )
