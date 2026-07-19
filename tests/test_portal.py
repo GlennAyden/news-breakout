@@ -476,6 +476,29 @@ def test_run_portal_feed_caps_sends_per_run():
     store.close()
 
 
+def test_run_portal_feed_summary_does_not_repeat_headline():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **kwargs):
+        sent.append(text)
+        return True
+
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+        return [PortalNews("ANTM", "Antam Tebar Dividen", NOW, "https://x/1", "s")]
+
+    def extractor(url):  # trafilatura emits the headline as the body's first line
+        return "Antam Tebar Dividen Jakarta, CNBC - Perusahaan membagikan dividen tahun ini."
+
+    settings = _settings(portal_enabled=True, portal_sources=["x"])
+    run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher,
+                    extractor=extractor, classifier=lambda t, **k: [""] * len(t))
+    msg = sent[0]
+    assert msg.count("Antam Tebar Dividen") == 1  # only in the hyperlink, not repeated in summary
+    assert "Jakarta, CNBC - Perusahaan membagikan dividen" in msg
+    store.close()
+
+
 def test_run_portal_feed_orders_corp_then_strong_sentiment_then_rest():
     store = DedupStore(":memory:")
     sent = []

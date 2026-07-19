@@ -32,7 +32,7 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
                     extractor=None, classifier=None) -> list[str]:
     if not settings.portal_enabled:
         return []
-    from news_breakout.news.extract import fetch_article_text, lead_summary
+    from news_breakout.news.extract import fetch_article_text, lead_summary, strip_leading_title
     from news_breakout.news.portal import _default_http_get
     from news_breakout.news.sentiment import classify as _classify
 
@@ -57,6 +57,7 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
             body = extractor(it.url)
         except Exception:  # noqa: BLE001 — a fetch failure must not drop the item
             body = ""
+        body = strip_leading_title(body, it.title)  # avoid echoing the hyperlinked headline
         it.lead = lead_summary(body or it.summary, settings.portal_summary_sentences)
 
     # optional sentiment tag; any failure degrades to no tag, news still flows

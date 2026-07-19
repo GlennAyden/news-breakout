@@ -1,4 +1,34 @@
-from news_breakout.news.extract import lead_summary, fetch_article_text
+from news_breakout.news.extract import lead_summary, fetch_article_text, strip_leading_title
+
+
+# ---- strip_leading_title (pure) --------------------------------------------
+
+def test_strip_leading_title_removes_headline_prefix():
+    body = "Antam Tebar Dividen Rp120 Jakarta, CNBC - PT Aneka Tambang membagikan dividen."
+    assert strip_leading_title(body, "Antam Tebar Dividen Rp120") == \
+        "Jakarta, CNBC - PT Aneka Tambang membagikan dividen."
+
+
+def test_strip_leading_title_case_insensitive_and_punctuation():
+    body = "Habco Mau Private Placement? Jakarta - emiten logistik."
+    assert strip_leading_title(body, "habco mau private placement?") == "Jakarta - emiten logistik."
+
+
+def test_strip_leading_title_no_prefix_unchanged():
+    body = "Jakarta - berita tanpa judul di depan."
+    assert strip_leading_title(body, "Judul Lain") == "Jakarta - berita tanpa judul di depan."
+
+
+def test_strip_leading_title_body_equals_title_returns_empty():
+    assert strip_leading_title("Judul Saja", "Judul Saja") == ""
+
+
+def test_strip_leading_title_empty_title_unchanged():
+    assert strip_leading_title("Ada isi.", "") == "Ada isi."
+
+
+def test_strip_leading_title_collapses_whitespace():
+    assert strip_leading_title("  Judul   X   isinya di sini.", "Judul X") == "isinya di sini."
 
 
 # ---- lead_summary (pure) ----------------------------------------------------

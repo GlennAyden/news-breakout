@@ -22,6 +22,20 @@ def lead_summary(text: str, n: int = 2, *, max_chars: int = 320) -> str:
     return summary
 
 
+def strip_leading_title(text: str, title: str) -> str:
+    """Drop a leading occurrence of ``title`` from extracted article ``text``.
+
+    trafilatura commonly emits the headline as the article's first line, which
+    would duplicate the hyperlinked headline already shown in the message. Pure
+    function; collapses whitespace and trims separators left after the strip.
+    """
+    text = " ".join((text or "").split())
+    title = " ".join((title or "").split())
+    if title and text.lower().startswith(title.lower()):
+        text = text[len(title):].lstrip(" -:.–—")
+    return text
+
+
 def fetch_article_text(url: str, *, http_get, extractor=None) -> str:
     """Fetch ``url`` via ``http_get`` and return the extracted main article text.
 
