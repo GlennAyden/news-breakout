@@ -63,6 +63,17 @@ def _trade_plan_line(alert: TickerAlert) -> str:
     )
 
 
+def _score_line(alert: TickerAlert) -> str:
+    parts = [f"🏅 Skor {alert.quality_score:.1f}"]
+    if alert.above_sma50 is True:
+        parts.append("tren↑")
+    elif alert.above_sma50 is False:
+        parts.append("tren↓")
+    if alert.ext_pct > 0:
+        parts.append(f"+{alert.ext_pct:.1f}% dari level")
+    return " · ".join(parts)
+
+
 def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None) -> str:
     price = alert.signals[0].price
     marker = "🔥" if catalyst is not None else "🚨"
@@ -78,6 +89,7 @@ def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None) 
             f"• TF {s.timeframe}: {label} · level {_rupiah(s.level)} · RVOL {s.rvol:.1f}× {arrow}"
         )
     lines.append(_trade_plan_line(alert))
+    lines.append(_score_line(alert))
     if catalyst is not None:
         lines.append(
             f"📰 Katalis: {catalyst.title} ({_time_ago(catalyst.timestamp, alert.timestamp)})"

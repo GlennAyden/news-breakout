@@ -6,6 +6,7 @@ import pandas as pd
 
 from news_breakout.models import BreakoutSignal, TickerAlert
 from news_breakout.signals.breakout import detect_donchian_breakout
+from news_breakout.signals.scoring import compute_score_components
 from news_breakout.signals.volume import compute_rvol
 
 
@@ -81,4 +82,9 @@ def evaluate_ticker(
     if not signals:
         return None
     priority = sum(TF_WEIGHT[s.timeframe] for s in signals)
-    return TickerAlert(ticker=ticker, signals=signals, priority=priority, timestamp=now)
+    alert = TickerAlert(ticker=ticker, signals=signals, priority=priority, timestamp=now)
+    components = compute_score_components(alert, frames.get("1D"))
+    alert.quality_score = components.score
+    alert.ext_pct = components.ext_pct
+    alert.above_sma50 = components.above_sma50
+    return alert

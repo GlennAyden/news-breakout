@@ -11,7 +11,9 @@ TS = datetime(2026, 7, 18, 8, 0, tzinfo=ZoneInfo("Asia/Jakarta"))
 
 def _alert(ticker, priority, rvol):
     sig = BreakoutSignal(ticker, "1D", "resistance_breakout", 100.0, 1.0, 95.0, rvol, TS)
-    return TickerAlert(ticker, [sig], priority, TS)
+    a = TickerAlert(ticker, [sig], priority, TS)
+    a.quality_score = priority  # weekend summary now ranks by quality_score
+    return a
 
 
 def test_summary_empty():

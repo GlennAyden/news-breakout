@@ -147,6 +147,59 @@ def test_scan_once_attaches_catalyst_and_boosts_priority():
     store.close()
 
 
+def test_scan_once_ranks_by_quality_score_when_priority_tied():
+    # Both tickers fire a single 1D breakout (priority 3.0 each), but HIGHX thrusts far
+    # above its level (ext ~10%, capped) while LOWX barely clears it (ext ~0.9%) -- the
+    # quality score (not raw priority) must decide the order.
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    daily = {
+        "HIGHX": make_ohlcv(
+            highs=[110, 108, 110, 116], lows=[100, 101, 102, 108],
+            closes=[100, 100, 100, 121], volumes=[100, 100, 100, 300]),
+        "LOWX": make_ohlcv(
+            highs=[110, 108, 110, 116], lows=[100, 101, 102, 108],
+            closes=[100, 100, 100, 111], volumes=[100, 100, 100, 300]),
+    }
+    result = run.scan_once(_settings(), daily, {}, store, now=NOW, sender=sender,
+                           tickers=["HIGHX", "LOWX"])
+    assert result == ["HIGHX", "LOWX"]
+    store.close()
+
+
+def test_scan_once_catalyst_boost_can_flip_ranking():
+    # Same setup as above, but LOWX (the marginal breakout) gets a news catalyst.
+    # The boost must raise its quality_score enough to overtake HIGHX's ranking.
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    daily = {
+        "HIGHX": make_ohlcv(
+            highs=[110, 108, 110, 116], lows=[100, 101, 102, 108],
+            closes=[100, 100, 100, 121], volumes=[100, 100, 100, 300]),
+        "LOWX": make_ohlcv(
+            highs=[110, 108, 110, 116], lows=[100, 101, 102, 108],
+            closes=[100, 100, 100, 111], volumes=[100, 100, 100, 300]),
+    }
+    catalyst = Disclosure(
+        ticker="LOWX", title="Rights Issue", timestamp=NOW,
+        disclosure_id="1", url="https://example.com",
+    )
+    result = run.scan_once(_settings(), daily, {}, store, now=NOW, sender=sender,
+                           tickers=["HIGHX", "LOWX"], catalysts={"LOWX": catalyst})
+    assert result == ["LOWX", "HIGHX"]
+    store.close()
+
+
 def test_run_scan_attaches_catalysts_from_disclosure_fetcher():
     store = DedupStore(":memory:")
     sent = []

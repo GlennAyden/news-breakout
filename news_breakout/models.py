@@ -22,6 +22,9 @@ class TickerAlert:
     signals: list["BreakoutSignal"]
     priority: float
     timestamp: datetime
+    quality_score: float = 0.0
+    ext_pct: float = 0.0
+    above_sma50: bool | None = None
 
     @property
     def max_rvol(self) -> float:

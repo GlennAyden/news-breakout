@@ -44,10 +44,13 @@ def scan_once(settings: Settings, daily_data, intraday_data, store: DedupStore,
         )
         if alert is not None:
             if alert.ticker in catalysts:
+                # Boost both priority (shown in the header) and quality_score (drives
+                # ranking) so the catalyst still raises this alert in the sort order.
                 alert.priority += settings.news_priority_boost
+                alert.quality_score += settings.news_priority_boost
             alerts.append(alert)
 
-    alerts.sort(key=lambda a: (a.priority, a.max_rvol), reverse=True)
+    alerts.sort(key=lambda a: (a.quality_score, a.max_rvol), reverse=True)
 
     alerted: list[str] = []
     for alert in alerts:
