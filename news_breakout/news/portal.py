@@ -20,7 +20,8 @@ class PortalNews:
     timestamp: datetime
     url: str
     source: str
-    summary: str = ""   # article body/description, used for ticker matching (not displayed)
+    summary: str = ""       # article body/description, used for matching (not displayed)
+    corp_action: bool = False  # title/body mentions a corporate-action keyword
 
 
 def _parse_pubdate(raw: str, now: datetime) -> datetime:
@@ -64,16 +65,23 @@ def match_ticker(text: str, watchlist: list[str], name_map: dict[str, str]) -> s
     return ""
 
 
+def has_corp_action(text: str, keywords: list[str]) -> bool:
+    low = text.lower()
+    return any(kw.lower() in low for kw in keywords)
+
+
 def _default_http_get(url: str) -> str:
     from curl_cffi import requests as creq
     return creq.Session(impersonate="chrome120").get(url, timeout=30).text
 
 
-def fetch_portal_news(sources, watchlist, name_map, *, now, http_get=None) -> list[PortalNews]:
+def fetch_portal_news(sources, watchlist, name_map, *, now, http_get=None,
+                      corp_keywords=None) -> list[PortalNews]:
     # Local import avoids a circular import: portal_html.py imports PortalNews
     # from this module, so this module cannot import portal_html at load time.
     from news_breakout.news.portal_html import parse_bisnis, parse_emitennews, parse_investor
 
+    corp_keywords = corp_keywords or []
     parsers = {
         "rss": parse_rss,
         "emitennews": parse_emitennews,
@@ -97,8 +105,14 @@ def fetch_portal_news(sources, watchlist, name_map, *, now, http_get=None) -> li
         for item in parser(text, _source_name(url), now=now):
             # match against title AND body so an emiten named only in the article
             # text (not the headline) still gets tagged
-            tk = match_ticker(f"{item.title} {item.summary}".strip(), watchlist, name_map)
-            if tk:
-                item.ticker = tk
-                out.append(item)
+            blob = f"{item.title} {item.summary}".strip()
+            tk = match_ticker(blob, watchlist, name_map)
+            is_corp = has_corp_action(blob, corp_keywords)
+            # keep anything that mentions an emiten OR is a corporate action;
+            # drop only pure macro/general news that references neither
+            if not (tk or is_corp):
+                continue
+            item.ticker = tk
+            item.corp_action = is_corp
+            out.append(item)
     return out

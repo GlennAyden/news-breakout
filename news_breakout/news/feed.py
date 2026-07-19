@@ -34,8 +34,10 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
     # match against the full universe (watchlist + candidates), not just the watchlist,
     # so market news about any scanned liquid stock gets surfaced too
     tickers = list(dict.fromkeys(settings.watchlist + settings.universe_candidates))
-    items = fetcher(settings.portal_sources, tickers, settings.portal_name_map, now=now)
-    items.sort(key=lambda i: i.timestamp)
+    items = fetcher(settings.portal_sources, tickers, settings.portal_name_map, now=now,
+                    corp_keywords=settings.curated_keywords)
+    # corporate actions first (highest signal), then oldest -> newest within each tier
+    items.sort(key=lambda i: (not i.corp_action, i.timestamp))
     sent = []
     for it in items:
         if store.news_already_sent(it.url):

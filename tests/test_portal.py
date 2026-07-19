@@ -3,7 +3,9 @@ from zoneinfo import ZoneInfo
 
 from news_breakout.config import Settings
 from news_breakout.alerts.dedup import DedupStore
-from news_breakout.news.portal import PortalNews, parse_rss, match_ticker, fetch_portal_news
+from news_breakout.news.portal import (
+    PortalNews, parse_rss, match_ticker, has_corp_action, fetch_portal_news,
+)
 from news_breakout.news.formatter import format_portal
 from news_breakout.news.feed import run_portal_feed
 
@@ -104,7 +106,7 @@ def test_run_portal_feed_passes_watchlist_plus_universe_to_fetcher():
     store = DedupStore(":memory:")
     captured = {}
 
-    def fetcher(sources, tickers, name_map, *, now, http_get=None):
+    def fetcher(sources, tickers, name_map, *, now, http_get=None, corp_keywords=None):
         captured["tickers"] = list(tickers)
         return []
 
@@ -246,7 +248,7 @@ def test_run_portal_feed_disabled_returns_empty_and_sends_nothing():
         sent.append((chat_id, text))
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
         raise AssertionError("fetcher should not be called when portal disabled")
 
     result = run_portal_feed(_settings(portal_enabled=False), store, now=NOW,
@@ -264,7 +266,7 @@ def test_run_portal_feed_enabled_sends_and_dedups_on_second_run():
         sent.append((chat_id, text))
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
         return [
             PortalNews("BRPT", "Barito Pacific catat kinerja positif", NOW,
                        "https://www.kontan.co.id/news/barito-pacific-1", "kontan.co.id"),

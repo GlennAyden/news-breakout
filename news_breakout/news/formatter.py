@@ -14,9 +14,13 @@ def format_disclosure(d: Disclosure) -> str:
 
 
 def format_portal(item) -> str:
+    if getattr(item, "corp_action", False):
+        head = "🚨 AKSI KORPORASI" + (f" · {item.ticker}" if item.ticker else "")
+    else:
+        head = f"📰 {item.ticker}" if item.ticker else "📰 Berita Pasar"
     return (
-        f"📰 {item.ticker} · {item.source}\n"
+        f"{head}\n"
         f"{item.title}\n"
-        f"🕒 {item.timestamp:%d %b %H:%M} WIB · Portal News\n"
+        f"🕒 {item.timestamp:%d %b %H:%M} WIB · {item.source}\n"
         f"{item.url}"
     )
