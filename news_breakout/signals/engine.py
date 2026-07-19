@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from news_breakout.models import BreakoutSignal, TickerAlert
+from news_breakout.models import TF_WEIGHT, BreakoutSignal, TickerAlert
 from news_breakout.signals.breakout import detect_donchian_breakout
 from news_breakout.signals.scoring import compute_score_components
 from news_breakout.signals.volume import compute_rvol
@@ -60,7 +60,6 @@ def evaluate_daily(
     )
 
 
-TF_WEIGHT = {"1D": 3.0, "4H": 2.0, "1H": 1.0}
 _TF_ORDER = ["1D", "4H", "1H"]
 
 

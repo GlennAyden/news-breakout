@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from news_breakout.models import BreakoutSignal, TickerAlert
+from news_breakout.models import TF_WEIGHT, BreakoutSignal, TickerAlert
 from news_breakout.news.models import Disclosure
 
 
@@ -38,14 +38,11 @@ _SIGNAL_LABEL = {
     "wyckoff_range_breakout": "Wyckoff range breakout",
 }
 
-_TIMEFRAME_WEIGHT = {"1D": 3, "4H": 2, "1H": 1}
-
-
 def _primary_signal(signals: list[BreakoutSignal]) -> BreakoutSignal:
     """Pick the signal with the highest timeframe weight (1D>4H>1H); tie-break by highest level."""
     return max(
         signals,
-        key=lambda s: (_TIMEFRAME_WEIGHT.get(s.timeframe, 0), s.level),
+        key=lambda s: (TF_WEIGHT.get(s.timeframe, 0.0), s.level),
     )
 
 

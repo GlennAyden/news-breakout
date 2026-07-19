@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from news_breakout.models import TickerAlert
+from news_breakout.models import TF_WEIGHT, TickerAlert
 
 # --- Tunable weights (backtest-derived; see .superpowers/sdd/r3-ranking-report.md) ---
 # Extension above the broken level is the strongest predictor (monotonic in backtest):
@@ -21,8 +21,6 @@ SMA_WINDOW = 50
 # RVOL is inverted-U (moderate-high best, extreme = exhaustion) — deliberately NOT part
 # of the score. It remains a tiebreaker only (see run.py::scan_once / TickerAlert.max_rvol).
 
-_TF_WEIGHT = {"1D": 3.0, "4H": 2.0, "1H": 1.0}
-
 
 @dataclass
 class ScoreComponents:
@@ -33,7 +31,7 @@ class ScoreComponents:
 
 def _top_signal(alert: TickerAlert):
     """The highest-timeframe fired signal (1D > 4H > 1H); ties broken by highest level."""
-    return max(alert.signals, key=lambda s: (_TF_WEIGHT.get(s.timeframe, 0.0), s.level))
+    return max(alert.signals, key=lambda s: (TF_WEIGHT.get(s.timeframe, 0.0), s.level))
 
 
 def _extension_pct(price: float, level: float) -> float:
@@ -44,13 +42,17 @@ def _extension_pct(price: float, level: float) -> float:
 
 
 def _trend_state(daily_df: pd.DataFrame | None) -> bool | None:
-    """True if daily close is above SMA50, False if at/below, None when it can't be computed."""
+    """True if daily close is at/above SMA50, False if below, None when it can't be computed.
+
+    An exact tie counts as 'above' (no penalty) — a breakout AT the mean is not the
+    counter-trend case the penalty targets.
+    """
     if daily_df is None or len(daily_df) < SMA_WINDOW:
         return None
     closes = daily_df["Close"]
     sma50 = float(closes.iloc[-SMA_WINDOW:].mean())
     last_close = float(closes.iloc[-1])
-    return last_close > sma50
+    return last_close >= sma50
 
 
 def compute_score_components(
