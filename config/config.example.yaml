@@ -236,6 +236,8 @@ portal:
     - {url: https://katadata.co.id/rss/finansial, parser: rss}
     - {url: https://emitentrust.com/category/stock-and-market/feed/, parser: rss}
     - {url: https://emitennews.com/category/emiten, parser: emitennews}
+  summary_sentences: 2    # extractive lead length (sentences)
+  max_per_run: 20         # anti-flood cap: max NEW items sent per hourly run
   name_map:               # lowercase company name -> ticker; extend/verify for your watchlist
     aneka tambang: ANTM
     antam: ANTM
@@ -267,6 +269,11 @@ portal:
     vktr teknologi mobilitas: VKTR
     vktr: VKTR
     solusi sinergi digital: WIFI
+
+sentiment:
+  enabled: true
+  model: w11wo/indonesian-roberta-base-sentiment-classifier
+  min_confidence: 0.6     # below this, an item is treated as netral (chip hidden)
 
 # Price data (M6): the VPS reads OHLCV from Supabase, filled by a GitHub Actions
 # fetcher. Set these in the environment / VPS .env (never commit real values):

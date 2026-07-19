@@ -40,6 +40,11 @@ class Settings(BaseModel):
     supabase_url: str = ""
     supabase_key: str = ""
     price_staleness_max_minutes: int = 150
+    portal_summary_sentences: int = 2
+    portal_max_per_run: int = 20
+    sentiment_enabled: bool = True
+    sentiment_model: str = "w11wo/indonesian-roberta-base-sentiment-classifier"
+    sentiment_min_confidence: float = 0.6
 
 
 def _load_env_file(env_path: str) -> None:
@@ -85,6 +90,7 @@ def load_settings(
     universe = raw.get("universe", {})
     news = raw.get("news", {})
     portal = raw.get("portal", {})
+    sentiment = raw.get("sentiment", {})
     return Settings(
         watchlist=raw["watchlist"],
         donchian_lookback=signals["donchian_lookback"],
@@ -115,6 +121,11 @@ def load_settings(
         portal_enabled=portal.get("enabled", False),
         portal_sources=portal.get("sources", []),
         portal_name_map=portal.get("name_map", {}),
+        portal_summary_sentences=portal.get("summary_sentences", 2),
+        portal_max_per_run=portal.get("max_per_run", 20),
+        sentiment_enabled=sentiment.get("enabled", True),
+        sentiment_model=sentiment.get("model", "w11wo/indonesian-roberta-base-sentiment-classifier"),
+        sentiment_min_confidence=sentiment.get("min_confidence", 0.6),
         supabase_url=_normalize_supabase_url(os.environ.get("SUPABASE_URL", "")),
         supabase_key=os.environ.get("SUPABASE_KEY", "").strip(),
         price_staleness_max_minutes=raw.get("monitoring", {}).get("price_staleness_max_minutes", 90),
