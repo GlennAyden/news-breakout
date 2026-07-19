@@ -281,6 +281,11 @@ def test_format_portal_escapes_html_in_dynamic_fields():
     assert "b=1&amp;c=2" in msg
 
 
+def test_format_portal_escapes_ticker():
+    item = PortalNews("A&<B", "judul", datetime(2026, 7, 19, 14, 30, tzinfo=WIB), "u", "s")
+    assert "A&amp;&lt;B" in format_portal(item)
+
+
 # ---- run_portal_feed ----------------------------------------------------------
 
 def test_run_portal_feed_disabled_returns_empty_and_sends_nothing():
@@ -329,6 +334,35 @@ def test_run_portal_feed_enabled_sends_and_dedups_on_second_run():
     second = run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher, **kw)
     assert second == []
     assert len(sent) == 2   # no new sends
+    store.close()
+
+
+def test_run_portal_feed_skips_enrichment_for_already_sent_items():
+    store = DedupStore(":memory:")
+    store.news_mark_sent("https://x/1")
+    fetched = []
+
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+        return [
+            PortalNews("A", "judul lama", NOW, "https://x/1", "s"),
+            PortalNews("B", "judul baru", NOW, "https://x/2", "s"),
+        ]
+
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **kwargs):
+        sent.append(text)
+        return True
+
+    def extractor(url):
+        fetched.append(url)
+        return ""
+
+    settings = _settings(portal_enabled=True, portal_sources=["x"])
+    run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher,
+                    extractor=extractor, classifier=lambda texts, **k: [""] * len(texts))
+    assert fetched == ["https://x/2"]   # already-sent URL never fetched/enriched
+    assert len(sent) == 1
     store.close()
 
 
@@ -397,6 +431,28 @@ def test_run_portal_feed_classifier_failure_still_sends_without_chip():
     settings = _settings(portal_enabled=True, portal_sources=["x"])
     run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher,
                     extractor=lambda url: "isi", classifier=boom)
+    assert len(sent) == 1
+    assert "\U0001F4C8" not in sent[0] and "\U0001F4C9" not in sent[0]
+    store.close()
+
+
+def test_run_portal_feed_survives_non_list_classifier_return():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **kwargs):
+        sent.append(text)
+        return True
+
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+        return [PortalNews("ANTM", "judul", NOW, "https://x/1", "s")]
+
+    def classifier(texts, **k):
+        return (x for x in ["positif"])   # generator, not a list
+
+    settings = _settings(portal_enabled=True, portal_sources=["x"])
+    run_portal_feed(settings, store, now=NOW, sender=sender, fetcher=fetcher,
+                    extractor=lambda url: "", classifier=classifier)
     assert len(sent) == 1
     assert "\U0001F4C8" not in sent[0] and "\U0001F4C9" not in sent[0]
     store.close()

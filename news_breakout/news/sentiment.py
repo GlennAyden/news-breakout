@@ -59,6 +59,6 @@ def classify(texts: list[str], *, runner=None, min_confidence: float = 0.6) -> l
                 out.append(label)
             else:
                 out.append("netral")
-        except (AttributeError, TypeError, ValueError):  # noqa: BLE001 — malformed items degrade to netral
+        except (AttributeError, TypeError, ValueError):  # malformed items degrade to netral
             out.append("netral")
     return out

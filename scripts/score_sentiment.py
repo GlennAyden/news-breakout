@@ -18,6 +18,9 @@ def main() -> int:
     if not texts:
         sys.stdout.write("[]")
         return 0
+
+    os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
     from transformers import pipeline
 
     model = os.environ.get("SENTIMENT_MODEL", DEFAULT_MODEL)

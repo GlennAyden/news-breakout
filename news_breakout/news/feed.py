@@ -48,6 +48,9 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
     items = fetcher(settings.portal_sources, tickers, settings.portal_name_map, now=now,
                     corp_keywords=settings.curated_keywords)
 
+    # drop already-sent items before the expensive per-item fetch/classify stages below
+    items = [it for it in items if not store.news_already_sent(it.url)]
+
     # extractive summary from the full article body (fall back to the RSS description)
     for it in items:
         try:
@@ -61,11 +64,12 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
         try:
             labels = classifier([it.lead or it.title for it in items],
                                 min_confidence=settings.sentiment_min_confidence)
+            if not isinstance(labels, list) or len(labels) != len(items):
+                labels = [""] * len(items)
         except Exception:  # noqa: BLE001
             labels = [""] * len(items)
-        if len(labels) == len(items):
-            for it, lab in zip(items, labels):
-                it.sentiment = lab
+        for it, lab in zip(items, labels):
+            it.sentiment = lab
 
     # corporate actions first, then strong sentiment, then oldest -> newest
     strong = {"positif": 0, "negatif": 0}

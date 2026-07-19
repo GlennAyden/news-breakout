@@ -19,7 +19,7 @@ _SENTIMENT_CHIP = {"positif": "\U0001F4C8 Positif", "negatif": "\U0001F4C9 Negat
 
 
 def format_portal(item) -> str:
-    ticker = getattr(item, "ticker", "")
+    ticker = html.escape(getattr(item, "ticker", ""))
     if getattr(item, "corp_action", False):
         head = "\U0001F6A8 AKSI KORPORASI" + (f" · {ticker}" if ticker else "")
     else:
