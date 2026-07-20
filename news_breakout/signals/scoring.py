@@ -21,12 +21,20 @@ SMA_WINDOW = 50
 # RVOL is inverted-U (moderate-high best, extreme = exhaustion) — deliberately NOT part
 # of the score. It remains a tiebreaker only (see run.py::scan_once / TickerAlert.max_rvol).
 
+# EW-2 wave-position adjustment (gate-derived directions; magnitudes are a first
+# cut, tuned by the confirming ranking backtest). wave_3_start reward scales with
+# confidence (gate: high-conf outperformed low-conf).
+W_WAVE3_START = 2.0        # "start of Wave-3" breakouts outperformed (+4pp/10d)
+W_IMPULSE_MID = 1.5        # already-extended mid-impulse breakouts underperformed (-4pp/10d)
+W_WAVE5_EXHAUSTION = 1.0   # possible exhausted 5th — advisory penalty (gate n small)
+
 
 @dataclass
 class ScoreComponents:
     ext_pct: float
     above_sma50: bool | None
     score: float
+    wave_adjust: float = 0.0
 
 
 def _top_signal(alert: TickerAlert):
@@ -55,10 +63,25 @@ def _trend_state(daily_df: pd.DataFrame | None) -> bool | None:
     return last_close >= sma50
 
 
+def _wave_adjust(wave_context) -> float:
+    """Score nudge from the (advisory) Elliott wave position. 0 when unavailable/neutral."""
+    if wave_context is None:
+        return 0.0
+    pos = getattr(wave_context, "position", "none")
+    conf = getattr(wave_context, "confidence", 0.0)
+    if pos == "wave_3_start":
+        return W_WAVE3_START * conf
+    if pos == "impulse_mid":
+        return -W_IMPULSE_MID
+    if pos == "wave_5_possible_exhaustion":
+        return -W_WAVE5_EXHAUSTION
+    return 0.0
+
+
 def compute_score_components(
-    alert: TickerAlert, daily_df: pd.DataFrame | None = None
+    alert: TickerAlert, daily_df: pd.DataFrame | None = None, wave_context=None
 ) -> ScoreComponents:
-    """Pure ranking score: TF-confluence base + extension reward +/- trend filter.
+    """Pure ranking score: TF-confluence base + extension reward +/- trend filter +/- wave position.
 
     RVOL is intentionally excluded (inverted-U in backtest) — callers should use
     alert.max_rvol as a secondary tiebreaker instead.
@@ -73,8 +96,15 @@ def compute_score_components(
     elif above_sma50 is False:
         score -= W_TREND_DOWN
 
-    return ScoreComponents(ext_pct=ext_pct, above_sma50=above_sma50, score=score)
+    wave_adj = _wave_adjust(wave_context)
+    score += wave_adj
+
+    return ScoreComponents(
+        ext_pct=ext_pct, above_sma50=above_sma50, score=score, wave_adjust=wave_adj
+    )
 
 
-def compute_quality_score(alert: TickerAlert, daily_df: pd.DataFrame | None = None) -> float:
-    return compute_score_components(alert, daily_df).score
+def compute_quality_score(
+    alert: TickerAlert, daily_df: pd.DataFrame | None = None, wave_context=None
+) -> float:
+    return compute_score_components(alert, daily_df, wave_context=wave_context).score

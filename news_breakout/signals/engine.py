@@ -89,10 +89,6 @@ def evaluate_ticker(
         return None
     priority = sum(TF_WEIGHT[s.timeframe] for s in signals)
     alert = TickerAlert(ticker=ticker, signals=signals, priority=priority, timestamp=now)
-    components = compute_score_components(alert, frames.get("1D"))
-    alert.quality_score = components.score
-    alert.ext_pct = components.ext_pct
-    alert.above_sma50 = components.above_sma50
     if elliott_enabled and (daily := frames.get("1D")) is not None:
         try:
             alert.wave_context = label_current(
@@ -102,4 +98,10 @@ def evaluate_ticker(
         except Exception:
             logger.warning("elliott labeling failed for %s", ticker, exc_info=True)
             alert.wave_context = None
+    components = compute_score_components(
+        alert, frames.get("1D"), wave_context=alert.wave_context
+    )
+    alert.quality_score = components.score
+    alert.ext_pct = components.ext_pct
+    alert.above_sma50 = components.above_sma50
     return alert

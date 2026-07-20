@@ -1,10 +1,12 @@
 import numpy as np
 import pandas as pd
+import pytest
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from news_breakout.signals import engine as E
 from news_breakout.signals.engine import evaluate_ticker
+from news_breakout.signals.scoring import compute_score_components
 
 NOW = datetime(2026, 7, 17, 15, 30, tzinfo=ZoneInfo("Asia/Jakarta"))
 
@@ -56,3 +58,18 @@ def test_elliott_disabled_leaves_context_none():
     )
     assert alert is not None
     assert alert.wave_context is None
+
+
+def test_score_reflects_wave_context():
+    # Robust to whatever wave_context the synthetic df produces: the engine must
+    # have fed alert.wave_context into scoring, not scored before labeling.
+    df = _breakout_daily()
+    alert = evaluate_ticker(
+        "ANTM", {"1D": df}, donchian_lookback=20, rvol_window=20,
+        rvol_threshold=2.5, now=NOW,
+    )
+    assert alert is not None
+    expected = compute_score_components(
+        alert, df, wave_context=alert.wave_context
+    ).score
+    assert alert.quality_score == pytest.approx(expected)
