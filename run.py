@@ -90,10 +90,12 @@ def run_scan(
             warning = check_price_staleness(
                 daily, intraday, now,
                 max_intraday_age_minutes=settings.price_staleness_max_minutes,
+                session_active=True,  # gated above to >=threshold into the session
             )
         except Exception:  # noqa: BLE001 — a staleness check must never abort the scan
             warning = None
         if warning:
+            logger.warning("price staleness: %s", warning)  # visible in the journal
             key = f"stale-{now.strftime('%Y-%m-%d')}"
             if not store.news_already_sent(key) and sender(
                 settings.telegram_bot_token, settings.telegram_breakout_chat_id,

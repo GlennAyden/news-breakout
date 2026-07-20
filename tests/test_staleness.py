@@ -59,6 +59,24 @@ def test_daily_only_no_intraday_does_not_flag():
     assert check_price_staleness(daily_data, {}, now) is None
 
 
+def test_daily_only_during_active_session_warns():
+    # Mid-session (session_active) with NO intraday bars at all means the fetcher
+    # never produced today's 60m bars — the scan is running on EOD-only data,
+    # which IS stale and must warn (the gap that stayed silent in production).
+    now = datetime(2026, 7, 20, 11, 30, tzinfo=TZ)
+    daily_data = {"ANTM": _frame(now - timedelta(days=3))}
+    warning = check_price_staleness(daily_data, {}, now, session_active=True)
+    assert warning is not None
+    assert "⚠️" in warning
+
+
+def test_daily_only_outside_session_still_silent():
+    # Without session_active, daily-only stays silent (EOD/off-hours scans).
+    now = datetime(2026, 7, 20, 11, 30, tzinfo=TZ)
+    daily_data = {"ANTM": _frame(now - timedelta(days=3))}
+    assert check_price_staleness(daily_data, {}, now, session_active=False) is None
+
+
 def test_custom_max_age_threshold():
     now = datetime(2026, 7, 17, 15, 30, tzinfo=TZ)
     intraday_data = {"ANTM": _frame(now - timedelta(minutes=45))}

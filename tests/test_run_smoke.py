@@ -118,7 +118,9 @@ def test_run_scan_uses_injected_fetchers():
         disclosure_fetcher=lambda page_size, *, now, proxy, retries=0: [],
     )
     assert result == ["ANTM"]
-    assert len(sent) == 1
+    # empty intraday mid-session also emits a staleness warning; isolate the alert
+    alerts = [m for m in sent if "🚨" in m]
+    assert len(alerts) == 1
     store.close()
 
 
@@ -218,9 +220,10 @@ def test_run_scan_attaches_catalysts_from_disclosure_fetcher():
         disclosure_fetcher=lambda page_size, *, now, proxy, retries=0: disc,
     )
     assert result == ["ANTM"]
-    assert len(sent) == 1
-    assert "🔥" in sent[0]
-    assert "Katalis" in sent[0]
+    # catalyst-boosted alerts use the 🔥 header; isolate it from the staleness warning
+    alerts = [m for m in sent if "Katalis" in m]
+    assert len(alerts) == 1
+    assert "🔥" in alerts[0]
     store.close()
 
 
@@ -244,9 +247,9 @@ def test_run_scan_tolerates_disclosure_fetch_failure():
         disclosure_fetcher=failing_disclosure_fetcher,
     )
     assert result == ["ANTM"]
-    assert len(sent) == 1
-    assert "🚨" in sent[0]
-    assert "🔥" not in sent[0]
+    alerts = [m for m in sent if "🚨" in m]
+    assert len(alerts) == 1
+    assert "🔥" not in alerts[0]
     store.close()
 
 

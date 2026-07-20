@@ -11,15 +11,26 @@ def check_price_staleness(
     now: datetime,
     *,
     max_intraday_age_minutes: int = 90,
+    session_active: bool = False,
 ) -> str | None:
-    """Return a warning string if the price data looks stale (fetcher likely failed), else None."""
+    """Return a warning string if the price data looks stale (fetcher likely failed), else None.
+
+    ``session_active`` tells the check the trading session has been open long
+    enough that fresh intraday bars should exist — so a total absence of intraday
+    is itself a red flag, not a benign EOD/off-hours daily-only scan.
+    """
     freshest = _freshest_timestamp(intraday_data)
     if freshest is None:
-        # No intraday bars. Only a *total* outage (no daily either) is worth a
-        # warning — a daily-only scan (normal EOD data, always >90m old) must
-        # NOT be flagged stale, or every daily-only run would false-alarm.
+        # No intraday bars. A *total* outage (no daily either) always warns.
         if _freshest_timestamp(daily_data) is None:
             return "⚠️ Tidak ada data harga — fetcher/Supabase mungkin gagal"
+        # Daily present but no intraday: benign for an EOD/off-hours scan, but
+        # mid-session it means the fetcher never made today's 60m bars — stale.
+        if session_active:
+            return (
+                "⚠️ Data intraday tidak ada di tengah sesi — "
+                "fetcher GitHub Actions mungkin gagal/telat"
+            )
         return None
 
     age_minutes = (now - freshest).total_seconds() / 60
