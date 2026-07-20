@@ -93,3 +93,19 @@ def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None) 
         )
     lines.append(f"⏱️ {alert.timestamp:%H:%M} WIB · delay data ~15 mnt")
     return "\n".join(lines)
+
+
+def format_daily_digest(alerts: list[TickerAlert], *, now: datetime) -> str:
+    lines = [
+        f"🗓️ Watchlist Pagi — EOD Breakout ({now:%d %b %Y})",
+        "━━━━━━━━━━━━━━━━━━━",
+    ]
+    for i, a in enumerate(alerts, 1):
+        primary = _primary_signal(a.signals)
+        trend = "↑" if a.above_sma50 is True else ("↓" if a.above_sma50 is False else "·")
+        lines.append(
+            f"{i}. {a.ticker} · 🏅{a.quality_score:.1f} {trend} · "
+            f"{_rupiah(primary.price)} (level {_rupiah(primary.level)})"
+        )
+    lines.append("⏱️ ringkasan breakout harian · delay data ~15 mnt")
+    return "\n".join(lines)
