@@ -45,6 +45,12 @@ class Settings(BaseModel):
     sentiment_enabled: bool = True
     sentiment_model: str = "w11wo/indonesian-roberta-base-sentiment-classifier"
     sentiment_min_confidence: float = 0.6
+    daily_shift_enabled: bool = True
+    daily_shift_universe_file: str = "config/idx_all.txt"
+    daily_shift_min_daily_value: float = 2_000_000_000
+    daily_shift_min_price: float = 50
+    daily_shift_max_alerts: int = 15
+    daily_shift_history_days: int = 90
 
 
 def _load_env_file(env_path: str) -> None:
@@ -91,6 +97,7 @@ def load_settings(
     news = raw.get("news", {})
     portal = raw.get("portal", {})
     sentiment = raw.get("sentiment", {})
+    daily_shift = raw.get("daily_shift", {})
     return Settings(
         watchlist=raw["watchlist"],
         donchian_lookback=signals["donchian_lookback"],
@@ -126,6 +133,12 @@ def load_settings(
         sentiment_enabled=sentiment.get("enabled", True),
         sentiment_model=sentiment.get("model", "w11wo/indonesian-roberta-base-sentiment-classifier"),
         sentiment_min_confidence=sentiment.get("min_confidence", 0.6),
+        daily_shift_enabled=daily_shift.get("enabled", True),
+        daily_shift_universe_file=daily_shift.get("universe_file", "config/idx_all.txt"),
+        daily_shift_min_daily_value=daily_shift.get("min_daily_value", 2_000_000_000),
+        daily_shift_min_price=daily_shift.get("min_price", 50),
+        daily_shift_max_alerts=daily_shift.get("max_alerts", 15),
+        daily_shift_history_days=daily_shift.get("history_days", 90),
         supabase_url=_normalize_supabase_url(os.environ.get("SUPABASE_URL", "")),
         supabase_key=os.environ.get("SUPABASE_KEY", "").strip(),
         price_staleness_max_minutes=raw.get("monitoring", {}).get("price_staleness_max_minutes", 90),
