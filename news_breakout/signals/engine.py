@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 import pandas as pd
 
 from news_breakout.models import TF_WEIGHT, BreakoutSignal, TickerAlert
 from news_breakout.signals.breakout import detect_donchian_breakout
+from news_breakout.signals.elliott.waves import label_current
 from news_breakout.signals.scoring import compute_score_components
 from news_breakout.signals.volume import compute_rvol
+
+logger = logging.getLogger(__name__)
 
 
 def _pct_change(df: pd.DataFrame) -> float:
@@ -66,7 +70,10 @@ _TF_ORDER = ["1D", "4H", "1H"]
 def evaluate_ticker(
     ticker: str, frames: dict[str, pd.DataFrame], *,
     donchian_lookback: int, rvol_window: int, rvol_threshold: float,
-    now: datetime,
+    now: datetime, elliott_enabled: bool = True,
+    elliott_scales: tuple[float, ...] = (2.0, 3.5, 5.0),
+    elliott_atr_window: int = 14, elliott_max_pivots: int = 9,
+    elliott_fib_tolerance: float = 0.06,
 ) -> TickerAlert | None:
     signals: list[BreakoutSignal] = []
     for tf in _TF_ORDER:
@@ -86,4 +93,13 @@ def evaluate_ticker(
     alert.quality_score = components.score
     alert.ext_pct = components.ext_pct
     alert.above_sma50 = components.above_sma50
+    if elliott_enabled and (daily := frames.get("1D")) is not None:
+        try:
+            alert.wave_context = label_current(
+                daily, scales=elliott_scales, atr_window=elliott_atr_window,
+                max_pivots=elliott_max_pivots, fib_tol=elliott_fib_tolerance,
+            )
+        except Exception:
+            logger.warning("elliott labeling failed for %s", ticker, exc_info=True)
+            alert.wave_context = None
     return alert
