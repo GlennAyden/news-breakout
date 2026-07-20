@@ -39,7 +39,25 @@ def load_config(path: str = _CONFIG):
         raw = yaml.safe_load(fh)
     data = raw.get("data", {})
     universe_candidates = raw.get("universe", {}).get("candidates", [])
-    return raw["watchlist"], data["history_days"], data["intraday_period_days"], universe_candidates
+    ds = raw.get("daily_shift", {})
+    return (raw["watchlist"], data["history_days"], data["intraday_period_days"],
+            universe_candidates, ds)
+
+
+def load_daily_universe(path: str) -> list:
+    """Reuses the parsing rules of news_breakout.signals.daily_shift.load_daily_universe,
+    kept standalone so this script needs no package import when run by GitHub Actions.
+    """
+    if not os.path.exists(path):
+        return []
+    out, seen = [], set()
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.split("#", 1)[0].strip().upper()
+            if line and line not in seen:
+                seen.add(line)
+                out.append(line)
+    return out
 
 
 def _f(v):
@@ -63,29 +81,38 @@ def to_rows(df: pd.DataFrame, ticker: str, interval: str) -> list:
     return rows
 
 
-def fetch_all(watchlist: list, history_days: int, intraday_days: int, downloader) -> list:
-    plan = [("1d", f"{history_days}d", "1d"), ("60m", f"{intraday_days}d", "60m")]
-    jk = [f"{t}.JK" for t in watchlist]
+_FETCH_CHUNK = 200
+
+
+def fetch_all(watchlist: list, history_days: int, intraday_days: int, downloader,
+              *, mode: str = "intraday") -> list:
+    if mode == "daily":
+        plan = [("1d", f"{history_days}d", "1d")]
+    else:
+        plan = [("1d", f"{history_days}d", "1d"), ("60m", f"{intraday_days}d", "60m")]
     all_rows: list = []
     for store_iv, period, yf_iv in plan:
-        raw = downloader(
-            jk, period=period, interval=yf_iv, group_by="ticker",
-            auto_adjust=False, progress=False, threads=True,
-        )
-        for t in watchlist:
-            try:
-                sub = raw[f"{t}.JK"]
-            except (KeyError, TypeError):
-                continue
-            sub = sub[[c for c in _COLUMNS if c in sub.columns]].dropna(how="all")
-            if sub.empty:
-                continue
-            # yfinance's still-forming last intraday bar can repeat a
-            # timestamp; a duplicate (ticker, interval, ts) in the upsert
-            # batch makes PostgREST's ON CONFLICT DO UPDATE raise "cannot
-            # affect row a second time". Keep the latest observation.
-            sub = sub[~sub.index.duplicated(keep="last")]
-            all_rows.extend(to_rows(sub[_COLUMNS], t, store_iv))
+        for i in range(0, len(watchlist), _FETCH_CHUNK):
+            batch = watchlist[i:i + _FETCH_CHUNK]
+            jk = [f"{t}.JK" for t in batch]
+            raw = downloader(
+                jk, period=period, interval=yf_iv, group_by="ticker",
+                auto_adjust=False, progress=False, threads=True,
+            )
+            for t in batch:
+                try:
+                    sub = raw[f"{t}.JK"]
+                except (KeyError, TypeError):
+                    continue
+                sub = sub[[c for c in _COLUMNS if c in sub.columns]].dropna(how="all")
+                if sub.empty:
+                    continue
+                # yfinance's still-forming last intraday bar can repeat a
+                # timestamp; a duplicate (ticker, interval, ts) in the upsert
+                # batch makes PostgREST's ON CONFLICT DO UPDATE raise "cannot
+                # affect row a second time". Keep the latest observation.
+                sub = sub[~sub.index.duplicated(keep="last")]
+                all_rows.extend(to_rows(sub[_COLUMNS], t, store_iv))
     return all_rows
 
 
@@ -111,14 +138,26 @@ def upsert(rows: list, url: str, key: str, *, poster=None) -> bool:
 
 
 def main() -> None:
+    import argparse
     import yfinance as yf
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mode", choices=["intraday", "daily"], default="intraday")
+    args = ap.parse_args()
 
     url = _normalize_supabase_url(os.environ["SUPABASE_URL"])
     key = os.environ["SUPABASE_KEY"].strip()
-    watchlist, history_days, intraday_days, universe_candidates = load_config()
-    tickers = list(dict.fromkeys(watchlist + universe_candidates))
-    rows = fetch_all(tickers, history_days, intraday_days, yf.download)
-    print(f"fetched {len(rows)} bars for {len(tickers)} tickers")
+    watchlist, history_days, intraday_days, universe_candidates, ds = load_config()
+
+    if args.mode == "daily":
+        tickers = load_daily_universe(ds.get("universe_file", "config/idx_all.txt"))
+        hist = ds.get("history_days", 90)
+        rows = fetch_all(tickers, hist, intraday_days, yf.download, mode="daily")
+    else:
+        tickers = list(dict.fromkeys(watchlist + universe_candidates))
+        rows = fetch_all(tickers, history_days, intraday_days, yf.download)
+
+    print(f"[{args.mode}] fetched {len(rows)} bars for {len(tickers)} tickers")
     if not rows:
         print("ERROR: 0 bars fetched — aborting upsert (likely a Yahoo outage)", file=sys.stderr)
         sys.exit(1)

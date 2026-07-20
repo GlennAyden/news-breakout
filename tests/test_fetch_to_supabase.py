@@ -24,11 +24,12 @@ def test_load_config_returns_watchlist_history_intraday_and_universe_candidates(
             - BBCA
             - BBRI
         """), encoding="utf-8")
-    watchlist, history_days, intraday_days, universe_candidates = fts.load_config(str(cfg))
+    watchlist, history_days, intraday_days, universe_candidates, ds = fts.load_config(str(cfg))
     assert watchlist == ["ANTM", "BUMI"]
     assert history_days == 120
     assert intraday_days == 60
     assert universe_candidates == ["BBCA", "BBRI"]
+    assert ds == {}
 
 
 def test_load_config_defaults_universe_candidates_to_empty_list(tmp_path):
@@ -40,7 +41,7 @@ def test_load_config_defaults_universe_candidates_to_empty_list(tmp_path):
           history_days: 120
           intraday_period_days: 60
         """), encoding="utf-8")
-    _, _, _, universe_candidates = fts.load_config(str(cfg))
+    _, _, _, universe_candidates, _ = fts.load_config(str(cfg))
     assert universe_candidates == []
 
 
@@ -148,3 +149,34 @@ def test_upsert_returns_false_on_non_2xx():
     rows = [{"ticker": "ANTM", "interval": "1d", "ts": "x", "open": 1, "high": 1,
              "low": 1, "close": 1, "volume": 1}]
     assert fts.upsert(rows, "https://p.supabase.co", "svc", poster=poster) is False
+
+
+def test_fetch_all_daily_mode_is_1d_only():
+    from scripts.fetch_to_supabase import fetch_all
+    calls = []
+
+    def downloader(jk, **kw):
+        calls.append(kw["interval"])
+        import pandas as pd
+        idx = pd.date_range("2026-07-13", periods=3, freq="D")
+        cols = pd.MultiIndex.from_product([[jk[0]], ["Open", "High", "Low", "Close", "Volume"]])
+        return pd.DataFrame([[1, 2, 0.5, 1.5, 100]] * 3, index=idx, columns=cols)
+
+    rows = fetch_all(["ANTM"], 90, 60, downloader, mode="daily")
+    assert calls == ["1d"]                       # only the daily interval requested
+    assert all(r["interval"] == "1d" for r in rows)
+
+
+def test_fetch_all_intraday_mode_is_1d_and_60m():
+    from scripts.fetch_to_supabase import fetch_all
+    calls = []
+
+    def downloader(jk, **kw):
+        calls.append(kw["interval"])
+        import pandas as pd
+        idx = pd.date_range("2026-07-13", periods=3, freq="D")
+        cols = pd.MultiIndex.from_product([[jk[0]], ["Open", "High", "Low", "Close", "Volume"]])
+        return pd.DataFrame([[1, 2, 0.5, 1.5, 100]] * 3, index=idx, columns=cols)
+
+    fetch_all(["ANTM"], 120, 60, downloader)     # default mode
+    assert calls == ["1d", "60m"]
