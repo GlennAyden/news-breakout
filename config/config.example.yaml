@@ -275,6 +275,15 @@ sentiment:
   model: w11wo/indonesian-roberta-base-sentiment-classifier
   min_confidence: 0.6     # below this, an item is treated as netral (chip hidden)
 
+elliott:
+  enabled: true
+  atr_scales: [2.0, 3.5, 5.0]   # ZigZag sensitivities; cross-scale disagreement -> ambiguous
+  atr_window: 14
+  max_pivots: 9                 # confirmed swings fed to the labeler
+  fib_tolerance: 0.06           # ± band for ratio-fit scoring
+  min_confidence: 0.45          # below this, show nothing (or only 'ambiguous' if show_ambiguous)
+  show_ambiguous: false         # if true, print the 'ambigu' line instead of omitting
+
 # Price data (M6): the VPS reads OHLCV from Supabase, filled by a GitHub Actions
 # fetcher. Set these in the environment / VPS .env (never commit real values):
 #   SUPABASE_URL=https://<project>.supabase.co

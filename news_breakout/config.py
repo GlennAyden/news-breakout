@@ -45,6 +45,13 @@ class Settings(BaseModel):
     sentiment_enabled: bool = True
     sentiment_model: str = "w11wo/indonesian-roberta-base-sentiment-classifier"
     sentiment_min_confidence: float = 0.6
+    elliott_enabled: bool = True
+    elliott_atr_scales: list[float] = [2.0, 3.5, 5.0]
+    elliott_atr_window: int = 14
+    elliott_max_pivots: int = 9
+    elliott_fib_tolerance: float = 0.06
+    elliott_min_confidence: float = 0.45
+    elliott_show_ambiguous: bool = False
 
 
 def _load_env_file(env_path: str) -> None:
@@ -91,6 +98,7 @@ def load_settings(
     news = raw.get("news", {})
     portal = raw.get("portal", {})
     sentiment = raw.get("sentiment", {})
+    elliott = raw.get("elliott", {})
     return Settings(
         watchlist=raw["watchlist"],
         donchian_lookback=signals["donchian_lookback"],
@@ -126,6 +134,13 @@ def load_settings(
         sentiment_enabled=sentiment.get("enabled", True),
         sentiment_model=sentiment.get("model", "w11wo/indonesian-roberta-base-sentiment-classifier"),
         sentiment_min_confidence=sentiment.get("min_confidence", 0.6),
+        elliott_enabled=elliott.get("enabled", True),
+        elliott_atr_scales=elliott.get("atr_scales", [2.0, 3.5, 5.0]),
+        elliott_atr_window=elliott.get("atr_window", 14),
+        elliott_max_pivots=elliott.get("max_pivots", 9),
+        elliott_fib_tolerance=elliott.get("fib_tolerance", 0.06),
+        elliott_min_confidence=elliott.get("min_confidence", 0.45),
+        elliott_show_ambiguous=elliott.get("show_ambiguous", False),
         supabase_url=_normalize_supabase_url(os.environ.get("SUPABASE_URL", "")),
         supabase_key=os.environ.get("SUPABASE_KEY", "").strip(),
         price_staleness_max_minutes=raw.get("monitoring", {}).get("price_staleness_max_minutes", 90),
