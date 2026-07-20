@@ -4,6 +4,7 @@ from datetime import datetime
 
 from news_breakout.models import TF_WEIGHT, BreakoutSignal, TickerAlert
 from news_breakout.news.models import Disclosure
+from news_breakout.signals.elliott.annotate import elliott_block
 
 
 def _rupiah(value: float) -> str:
@@ -87,6 +88,11 @@ def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None) 
         )
     lines.append(_trade_plan_line(alert))
     lines.append(_score_line(alert))
+    for ln in elliott_block(
+        getattr(alert, "wave_context", None),
+        min_conf=0.45, show_ambiguous=False, rupiah=_rupiah,
+    ):
+        lines.append(ln)
     if catalyst is not None:
         lines.append(
             f"📰 Katalis: {catalyst.title} ({_time_ago(catalyst.timestamp, alert.timestamp)})"

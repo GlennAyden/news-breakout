@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from news_breakout.signals.elliott.models import WaveContext
 
 # Canonical timeframe confluence weights — the single source of truth shared by
 # the ranking (engine/scoring) and the display (formatter) so they never desync.
@@ -29,6 +33,7 @@ class TickerAlert:
     quality_score: float = 0.0
     ext_pct: float = 0.0
     above_sma50: bool | None = None
+    wave_context: "WaveContext | None" = None
 
     @property
     def max_rvol(self) -> float:
