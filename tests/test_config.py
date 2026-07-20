@@ -201,3 +201,59 @@ def test_load_settings_curation_defaults_when_absent(tmp_path):
     assert s.sentiment_enabled is True
     assert s.sentiment_model == "w11wo/indonesian-roberta-base-sentiment-classifier"
     assert s.sentiment_min_confidence == 0.6
+
+
+def test_load_settings_reads_daily_shift(tmp_path):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "watchlist: [ANTM]\n"
+        "signals: {donchian_lookback: 20, rvol_threshold: 2.0, rvol_window: 20, "
+        "range_lookback: 30, range_max_width_pct: 0.15}\n"
+        "data: {history_days: 120, intraday_period_days: 60}\n"
+        "runtime: {dry_run: true}\n"
+        "schedule: {market_open: \"09:00\", market_close: \"16:00\", scan_interval_minutes: 30, "
+        "weekend_scan_day: \"sat\", holidays: []}\n"
+        "universe: {candidates: [], min_price: 50, min_daily_value: 1000000000}\n"
+        "news: {curated_keywords: [dividen], disclosure_page_size: 50, "
+        "news_poll_interval_minutes: 60}\n"
+        "daily_shift: {enabled: false, universe_file: config/x.txt, min_daily_value: 3000000000, "
+        "min_price: 100, max_alerts: 10, history_days: 60}\n",
+        encoding="utf-8",
+    )
+    env = tmp_path / ".env"
+    env.write_text("TELEGRAM_BOT_TOKEN=a:b\nTELEGRAM_BREAKOUT_CHAT_ID=-1\nTELEGRAM_NEWS_CHAT_ID=-2\n",
+                   encoding="utf-8")
+    s = load_settings(str(cfg), str(env))
+    assert s.daily_shift_enabled is False
+    assert s.daily_shift_universe_file == "config/x.txt"
+    assert s.daily_shift_min_daily_value == 3000000000
+    assert s.daily_shift_min_price == 100
+    assert s.daily_shift_max_alerts == 10
+    assert s.daily_shift_history_days == 60
+
+
+def test_load_settings_daily_shift_defaults_when_absent(tmp_path):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "watchlist: [ANTM]\n"
+        "signals: {donchian_lookback: 20, rvol_threshold: 2.0, rvol_window: 20, "
+        "range_lookback: 30, range_max_width_pct: 0.15}\n"
+        "data: {history_days: 120, intraday_period_days: 60}\n"
+        "runtime: {dry_run: true}\n"
+        "schedule: {market_open: \"09:00\", market_close: \"16:00\", scan_interval_minutes: 30, "
+        "weekend_scan_day: \"sat\", holidays: []}\n"
+        "universe: {candidates: [], min_price: 50, min_daily_value: 1000000000}\n"
+        "news: {curated_keywords: [dividen], disclosure_page_size: 50, "
+        "news_poll_interval_minutes: 60}\n",
+        encoding="utf-8",
+    )
+    env = tmp_path / ".env"
+    env.write_text("TELEGRAM_BOT_TOKEN=a:b\nTELEGRAM_BREAKOUT_CHAT_ID=-1\nTELEGRAM_NEWS_CHAT_ID=-2\n",
+                   encoding="utf-8")
+    s = load_settings(str(cfg), str(env))
+    assert s.daily_shift_enabled is True
+    assert s.daily_shift_universe_file == "config/idx_all.txt"
+    assert s.daily_shift_min_daily_value == 2_000_000_000
+    assert s.daily_shift_min_price == 50
+    assert s.daily_shift_max_alerts == 15
+    assert s.daily_shift_history_days == 90

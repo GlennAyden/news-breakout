@@ -53,7 +53,19 @@ def main() -> None:
         portal_sent = run_portal_feed(settings, store, now=now)
         log.info("news poll complete; sent: %d, portal sent: %d", len(sent), len(portal_sent))
 
-    sched = build_scheduler(settings, scan_job=scan_job, weekend_job=weekend_job, news_job=news_job)
+    def daily_detect_job() -> None:
+        from news_breakout.signals.daily_shift import run_daily_scan
+        run_daily_scan(settings, store, now=datetime.now(WIB), mode="detect",
+                       daily_fetcher=make_daily_fetcher(settings))
+
+    def daily_reminder_job() -> None:
+        from news_breakout.signals.daily_shift import run_daily_scan
+        run_daily_scan(settings, store, now=datetime.now(WIB), mode="reminder",
+                       daily_fetcher=make_daily_fetcher(settings))
+
+    sched = build_scheduler(settings, scan_job=scan_job, weekend_job=weekend_job,
+                            news_job=news_job, daily_detect_job=daily_detect_job,
+                            daily_reminder_job=daily_reminder_job)
     log.info("scheduler started; jobs: %s", [j.id for j in sched.get_jobs()])
     try:
         sched.start()

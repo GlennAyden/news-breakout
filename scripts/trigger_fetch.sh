@@ -15,6 +15,7 @@
 #        */30 10-17 * * 1-5 /home/ubuntu/news-breakout/scripts/trigger_fetch.sh >> /home/ubuntu/news-breakout/data_cache/trigger.log 2>&1
 set -euo pipefail
 
+MODE="${1:-intraday}"
 REPO="GlennAyden/news-breakout"
 WORKFLOW="price-fetch.yml"
 
@@ -32,10 +33,10 @@ code="$(curl -sS -o /tmp/trigger_fetch_resp -w '%{http_code}' -X POST \
   -H "Accept: application/vnd.github+json" \
   -H "X-GitHub-Api-Version: 2022-11-28" \
   "https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW}/dispatches" \
-  -d '{"ref":"main"}')"
+  -d "{\"ref\":\"main\",\"inputs\":{\"mode\":\"${MODE}\"}}")"
 
 if [ "$code" = "204" ]; then
-  echo "$(date -u +%FT%TZ) dispatched ${WORKFLOW}"
+  echo "$(date -u +%FT%TZ) dispatched ${WORKFLOW} (mode=${MODE})"
 else
   echo "$(date -u +%FT%TZ) ERROR: dispatch failed (HTTP ${code}): $(cat /tmp/trigger_fetch_resp)" >&2
   exit 1

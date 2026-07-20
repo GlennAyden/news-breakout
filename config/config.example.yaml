@@ -284,6 +284,14 @@ elliott:
   min_confidence: 0.45          # below this, show nothing (or only 'ambiguous' if show_ambiguous)
   show_ambiguous: false         # if true, print the 'ambigu' line instead of omitting
 
+daily_shift:
+  enabled: true
+  universe_file: config/idx_all.txt   # broad IDX list (one ticker/line), scanned 1D-only once/day
+  min_daily_value: 2000000000         # Rp2 B avg daily value floor
+  min_price: 50
+  max_alerts: 15                      # top-N individual alerts at 16:30 WIB
+  history_days: 90                    # daily bars fetched for the broad tier
+
 # Price data (M6): the VPS reads OHLCV from Supabase, filled by a GitHub Actions
 # fetcher. Set these in the environment / VPS .env (never commit real values):
 #   SUPABASE_URL=https://<project>.supabase.co

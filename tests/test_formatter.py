@@ -91,3 +91,24 @@ def test_format_ticker_alert_trade_plan_degenerate_level_does_not_crash():
     assert "📍 Entry ~1.500" in msg
     assert "Rencana" not in msg
     assert "Risk" not in msg
+
+
+def test_format_daily_digest_ranks_and_lists():
+    from news_breakout.alerts.formatter import format_daily_digest
+    WIB = ZoneInfo("Asia/Jakarta")
+    now = datetime(2026, 7, 20, 16, 30, tzinfo=WIB)
+
+    def alert(tkr, score, price, level):
+        sig = BreakoutSignal(ticker=tkr, timeframe="1D", signal_type="resistance_breakout",
+                             price=price, pct_change=5.0, level=level, rvol=3.0, timestamp=now)
+        a = TickerAlert(ticker=tkr, signals=[sig], priority=3.0, timestamp=now)
+        a.quality_score = score
+        a.above_sma50 = True
+        a.ext_pct = 5.0
+        return a
+
+    msg = format_daily_digest([alert("AAA", 9.0, 1000, 950), alert("BBB", 4.0, 500, 490)], now=now)
+    assert "Watchlist Pagi" in msg
+    assert "1. AAA" in msg and "2. BBB" in msg
+    assert "AAA" in msg and "BBB" in msg
+    assert "20 Jul 2026" in msg

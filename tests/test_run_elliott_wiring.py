@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from tests.fixtures import make_ohlcv
 from news_breakout.config import Settings
 from news_breakout.alerts.dedup import DedupStore
+from news_breakout.signals import scan_core
 import run
 
 WIB = ZoneInfo("Asia/Jakarta")
@@ -42,7 +43,9 @@ def test_scan_once_forwards_elliott_config_to_evaluate_ticker(monkeypatch):
         recorded.append(kwargs)
         return None
 
-    monkeypatch.setattr(run, "evaluate_ticker", stub_evaluate_ticker)
+    # scan_once now delegates to evaluate_scan in scan_core, which calls
+    # scan_core.evaluate_ticker — patch it there.
+    monkeypatch.setattr(scan_core, "evaluate_ticker", stub_evaluate_ticker)
 
     result = run.scan_once(settings, _daily(), {}, store, now=NOW, sender=lambda *a, **k: True)
     assert result == []

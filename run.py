@@ -8,75 +8,16 @@ from zoneinfo import ZoneInfo
 
 from news_breakout.config import Settings, load_settings
 from news_breakout.data.yfinance_source import fetch_daily_ohlcv, fetch_intraday_ohlcv
-from news_breakout.data.resample import resample_ohlcv
 from news_breakout.data.universe import resolve_scan_tickers
 from news_breakout.alerts.staleness import check_price_staleness
-from news_breakout.signals.engine import evaluate_ticker
 from news_breakout.alerts.dedup import DedupStore
-from news_breakout.alerts.formatter import format_ticker_alert
 from news_breakout.alerts.telegram import send_message
 from news_breakout.news.idx_source import fetch_disclosures
 from news_breakout.news.booster import recent_by_ticker
+from news_breakout.signals.scan_core import evaluate_scan, scan_once
 
 WIB = ZoneInfo("Asia/Jakarta")
 logger = logging.getLogger("news_breakout")
-
-
-def scan_once(settings: Settings, daily_data, intraday_data, store: DedupStore,
-              *, now, sender=send_message, catalysts=None, tickers=None) -> list[str]:
-    if catalysts is None:
-        catalysts = {}
-    scan_list = settings.watchlist if tickers is None else tickers
-    alerts = []
-    for ticker in scan_list:
-        frames = {}
-        if ticker in daily_data:
-            frames["1D"] = daily_data[ticker]
-        if ticker in intraday_data:
-            frames["1H"] = intraday_data[ticker]
-            frames["4H"] = resample_ohlcv(intraday_data[ticker], "4h")
-        if not frames:
-            continue
-        alert = evaluate_ticker(
-            ticker, frames,
-            donchian_lookback=settings.donchian_lookback, rvol_window=settings.rvol_window,
-            rvol_threshold=settings.rvol_threshold, now=now,
-            elliott_enabled=settings.elliott_enabled,
-            elliott_scales=tuple(settings.elliott_atr_scales),
-            elliott_atr_window=settings.elliott_atr_window,
-            elliott_max_pivots=settings.elliott_max_pivots,
-            elliott_fib_tolerance=settings.elliott_fib_tolerance,
-        )
-        if alert is not None:
-            if alert.ticker in catalysts:
-                # Boost both priority (shown in the header) and quality_score (drives
-                # ranking) so the catalyst still raises this alert in the sort order.
-                alert.priority += settings.news_priority_boost
-                alert.quality_score += settings.news_priority_boost
-            alerts.append(alert)
-
-    alerts.sort(key=lambda a: (a.quality_score, a.max_rvol), reverse=True)
-
-    alerted: list[str] = []
-    for alert in alerts:
-        if "1D" in {s.timeframe for s in alert.signals}:
-            date_str = daily_data[alert.ticker].index[-1].strftime("%Y-%m-%d")
-        else:
-            date_str = now.strftime("%Y-%m-%d")
-        if store.already_sent(alert.ticker, "aggregated", "MULTI", date_str):
-            continue
-        catalyst = catalysts.get(alert.ticker)
-        text = format_ticker_alert(
-            alert, catalyst=catalyst,
-            min_conf=settings.elliott_min_confidence,
-            show_ambiguous=settings.elliott_show_ambiguous,
-        )
-        if not sender(settings.telegram_bot_token, settings.telegram_breakout_chat_id,
-                      text, dry_run=settings.dry_run):
-            continue
-        store.mark_sent(alert.ticker, "aggregated", "MULTI", date_str)
-        alerted.append(alert.ticker)
-    return alerted
 
 
 def run_scan(

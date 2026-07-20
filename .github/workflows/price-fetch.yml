@@ -4,7 +4,12 @@ on:
   schedule:
     - cron: "*/30 2-9 * * 1-5"   # every 30 min, 02:00-09:00 UTC = 09:00-16:00 WIB, Mon-Fri
     - cron: "0 3 * * 6"          # Sat 10:00 WIB — refresh 1d bars for the weekend deep-scan
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "intraday (1d+60m, watchlist∪candidates) or daily (1d, broad)"
+        required: false
+        default: intraday
 concurrency:
   group: price-fetch
   cancel-in-progress: true
@@ -22,4 +27,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python scripts/fetch_to_supabase.py
+        run: python scripts/fetch_to_supabase.py --mode "${{ github.event.inputs.mode || 'intraday' }}"
