@@ -62,7 +62,9 @@ def run_daily_scan(settings, store, *, now, mode, daily_fetcher,
     key = f"daily-digest-{now:%Y-%m-%d}"
     if store.news_already_sent(key):
         return []
-    if sender(settings.telegram_bot_token, settings.telegram_breakout_chat_id,
-              format_daily_digest(alerts, now=now), dry_run=settings.dry_run):
-        store.news_mark_sent(key)
+    sent = sender(settings.telegram_bot_token, settings.telegram_breakout_chat_id,
+                  format_daily_digest(alerts, now=now), dry_run=settings.dry_run)
+    if not sent:
+        return []                      # not delivered -> report nothing (key stays unmarked -> retry next run)
+    store.news_mark_sent(key)
     return [a.ticker for a in alerts]

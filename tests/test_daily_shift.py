@@ -95,3 +95,32 @@ def test_run_daily_scan_empty_universe_noops(tmp_path):
                          sender=lambda *a, **k: sent.append(1) or True, disclosure_fetcher=_no_disc)
     assert out == [] and sent == []
     store.close()
+
+
+def test_run_daily_scan_reminder_returns_empty_when_send_fails(tmp_path):
+    f = tmp_path / "idx.txt"
+    f.write_text("BMRI\nADRO\n", encoding="utf-8")
+    store = DedupStore(":memory:")
+    attempts = []
+
+    def failing_sender(bot_token, chat_id, text, *, dry_run, client=None):
+        attempts.append(text)
+        return False
+
+    daily = {"BMRI": _breakout_liquid(121), "ADRO": _breakout_liquid(121)}
+    kw = dict(daily_fetcher=lambda tickers, days: daily, disclosure_fetcher=_no_disc)
+    out = run_daily_scan(_settings(str(f)), store, now=NOW, mode="reminder",
+                         sender=failing_sender, **kw)
+    assert out == []                # send failed -> report nothing delivered
+    assert len(attempts) == 1       # sender was attempted exactly once
+
+    sent = []
+
+    def ok_sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    again = run_daily_scan(_settings(str(f)), store, now=NOW, mode="reminder",
+                           sender=ok_sender, **kw)
+    assert len(sent) == 1           # dedup key was NOT marked on the failed attempt -> retry works
+    store.close()
