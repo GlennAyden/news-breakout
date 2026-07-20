@@ -32,10 +32,15 @@ def test_r1_wave2_retraces_beyond_wave1_start_fails():
 
 
 def test_r2_wave3_shortest_fails():
-    # W1 len 40, W5 len 60, W3 len 20 (shortest)
-    p = _piv([(100, "L"), (140, "H"), (120, "L"), (140, "H"), (110, "L"), (170, "H")])
+    # Isolates R2: len1=100, len3=60, len5=195 -> W3 is the shortest -> R2 fails.
+    # p2=150>p0=100 (R1 ok); p4=205>p1=200 (R3 ok); alternation+up holds (R4 ok) --
+    # proving only R2 trips, not a side effect of another rule also failing.
+    p = _piv([(100, "L"), (200, "H"), (150, "L"), (210, "H"), (205, "L"), (400, "H")])
     wc = validate_impulse(p, scale=2.0)
+    assert wc.rule_flags["R1"] is True
     assert wc.rule_flags["R2"] is False
+    assert wc.rule_flags["R3"] is True
+    assert wc.rule_flags["R4"] is True
     assert wc.rules_ok is False
 
 

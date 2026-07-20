@@ -12,7 +12,7 @@ _LABEL = {
 }
 
 
-def elliott_block(ctx: WaveContext, *, min_conf: float, show_ambiguous: bool, rupiah) -> list[str]:
+def elliott_block(ctx: "WaveContext | None", *, min_conf: float, show_ambiguous: bool, rupiah) -> list[str]:
     if ctx is None or ctx.position == "none":
         return []
     if ctx.position == "ambiguous":

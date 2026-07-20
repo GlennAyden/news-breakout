@@ -1,9 +1,7 @@
 import numpy as np
 import pandas as pd
-from datetime import datetime
 
 from news_breakout.signals.elliott.swings import atr, detect_swings, multi_scale_swings
-from news_breakout.signals.elliott.models import Swing
 
 
 def _df(prices):

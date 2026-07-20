@@ -41,6 +41,11 @@ def scan_once(settings: Settings, daily_data, intraday_data, store: DedupStore,
             ticker, frames,
             donchian_lookback=settings.donchian_lookback, rvol_window=settings.rvol_window,
             rvol_threshold=settings.rvol_threshold, now=now,
+            elliott_enabled=settings.elliott_enabled,
+            elliott_scales=tuple(settings.elliott_atr_scales),
+            elliott_atr_window=settings.elliott_atr_window,
+            elliott_max_pivots=settings.elliott_max_pivots,
+            elliott_fib_tolerance=settings.elliott_fib_tolerance,
         )
         if alert is not None:
             if alert.ticker in catalysts:
@@ -61,7 +66,11 @@ def scan_once(settings: Settings, daily_data, intraday_data, store: DedupStore,
         if store.already_sent(alert.ticker, "aggregated", "MULTI", date_str):
             continue
         catalyst = catalysts.get(alert.ticker)
-        text = format_ticker_alert(alert, catalyst=catalyst)
+        text = format_ticker_alert(
+            alert, catalyst=catalyst,
+            min_conf=settings.elliott_min_confidence,
+            show_ambiguous=settings.elliott_show_ambiguous,
+        )
         if not sender(settings.telegram_bot_token, settings.telegram_breakout_chat_id,
                       text, dry_run=settings.dry_run):
             continue

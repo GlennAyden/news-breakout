@@ -72,7 +72,8 @@ def _score_line(alert: TickerAlert) -> str:
     return " · ".join(parts)
 
 
-def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None) -> str:
+def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None, *,
+                        min_conf: float = 0.45, show_ambiguous: bool = False) -> str:
     price = alert.signals[0].price
     marker = "🔥" if catalyst is not None else "🚨"
     lines = [
@@ -90,7 +91,7 @@ def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None) 
     lines.append(_score_line(alert))
     for ln in elliott_block(
         getattr(alert, "wave_context", None),
-        min_conf=0.45, show_ambiguous=False, rupiah=_rupiah,
+        min_conf=min_conf, show_ambiguous=show_ambiguous, rupiah=_rupiah,
     ):
         lines.append(ln)
     if catalyst is not None:

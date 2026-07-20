@@ -37,6 +37,11 @@ def run_weekend_scan(settings, *, now, sender=send_message, daily_fetcher=fetch_
             t, {"1D": daily[t]},
             donchian_lookback=settings.donchian_lookback, rvol_window=settings.rvol_window,
             rvol_threshold=settings.rvol_threshold, now=now,
+            elliott_enabled=settings.elliott_enabled,
+            elliott_scales=tuple(settings.elliott_atr_scales),
+            elliott_atr_window=settings.elliott_atr_window,
+            elliott_max_pivots=settings.elliott_max_pivots,
+            elliott_fib_tolerance=settings.elliott_fib_tolerance,
         )
         if a is not None:
             alerts.append(a)

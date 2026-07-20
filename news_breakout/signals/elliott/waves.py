@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from collections import Counter
 
-from news_breakout.signals.elliott.fibonacci import RETRACE
 from news_breakout.signals.elliott.models import Swing, Wave, WaveContext, WaveCount
 from news_breakout.signals.elliott.swings import multi_scale_swings
 

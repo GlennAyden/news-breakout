@@ -35,3 +35,19 @@ def test_low_confidence_context_hidden():
     ctx = WaveContext(position="wave_3_start", confidence=0.20, invalidation=2950.0)
     msg = format_ticker_alert(_alert(ctx))
     assert "🌊" not in msg
+
+
+def test_show_ambiguous_param_renders_ambiguous_line():
+    ctx = WaveContext(position="ambiguous", confidence=0.0, note="konflik")
+    default_msg = format_ticker_alert(_alert(ctx))
+    assert "🌊" not in default_msg
+    shown_msg = format_ticker_alert(_alert(ctx), show_ambiguous=True)
+    assert "ambigu" in shown_msg
+
+
+def test_min_conf_param_gates_block():
+    ctx = WaveContext(position="wave_3_start", confidence=0.50, invalidation=2950.0)
+    strict_msg = format_ticker_alert(_alert(ctx), min_conf=0.60)
+    assert "🌊" not in strict_msg
+    lenient_msg = format_ticker_alert(_alert(ctx), min_conf=0.40)
+    assert "🌊" in lenient_msg
