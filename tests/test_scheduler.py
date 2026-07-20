@@ -32,8 +32,15 @@ def test_should_scan_now_false_on_holiday_and_offhours():
     assert should_scan_now(datetime(2026, 7, 16, 7, 0, tzinfo=WIB), _settings()) is False   # pre-open
 
 
-def test_build_scheduler_registers_two_jobs():
-    sched = build_scheduler(_settings(), scan_job=lambda: None, weekend_job=lambda: None,
-                            news_job=lambda: None)
-    ids = {j.id for j in sched.get_jobs()}
-    assert ids == {"scan", "weekend", "news"}
+def test_build_scheduler_core_jobs_without_daily():
+    sched = build_scheduler(_settings(daily_shift_enabled=False),
+                            scan_job=lambda: None, weekend_job=lambda: None, news_job=lambda: None)
+    assert {j.id for j in sched.get_jobs()} == {"scan", "weekend", "news"}
+
+
+def test_build_scheduler_registers_daily_jobs_when_enabled():
+    sched = build_scheduler(_settings(daily_shift_enabled=True),
+                            scan_job=lambda: None, weekend_job=lambda: None, news_job=lambda: None,
+                            daily_detect_job=lambda: None, daily_reminder_job=lambda: None)
+    assert {j.id for j in sched.get_jobs()} == {
+        "scan", "weekend", "news", "daily_detect", "daily_reminder"}

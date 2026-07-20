@@ -13,9 +13,17 @@ def should_scan_now(now: datetime, settings) -> bool:
     )
 
 
-def build_scheduler(settings, *, scan_job, weekend_job, news_job, tz: str = "Asia/Jakarta") -> BlockingScheduler:
+def build_scheduler(settings, *, scan_job, weekend_job, news_job,
+                    daily_detect_job=None, daily_reminder_job=None,
+                    tz: str = "Asia/Jakarta") -> BlockingScheduler:
     sched = BlockingScheduler(timezone=tz)
     sched.add_job(scan_job, "interval", minutes=settings.scan_interval_minutes, id="scan")
     sched.add_job(weekend_job, "cron", day_of_week=settings.weekend_scan_day, hour=8, id="weekend")
     sched.add_job(news_job, "interval", minutes=settings.news_poll_interval_minutes, id="news")
+    if settings.daily_shift_enabled and daily_detect_job is not None:
+        sched.add_job(daily_detect_job, "cron", day_of_week="mon-fri", hour=16, minute=30,
+                      id="daily_detect")
+    if settings.daily_shift_enabled and daily_reminder_job is not None:
+        sched.add_job(daily_reminder_job, "cron", day_of_week="mon-fri", hour=8, minute=0,
+                      id="daily_reminder")
     return sched
