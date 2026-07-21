@@ -50,6 +50,15 @@ def _primary_signal(signals: list[BreakoutSignal]) -> BreakoutSignal:
 def _trade_plan_line(alert: TickerAlert) -> str:
     primary = _primary_signal(alert.signals)
     entry = primary.price
+    stop = getattr(alert, "structure_stop", None)
+    if stop is not None and stop < entry:
+        risk = (entry - stop) / entry * 100
+        target = entry + 2 * (entry - stop)
+        return (
+            f"📍 Rencana: Entry ~{_rupiah(entry)} · Invalidasi (EW) <{_rupiah(stop)} "
+            f"· Risk {risk:.1f}% · Target 2R ~{_rupiah(target)}"
+        )
+    # fallback: the original broken-level plan (unchanged / byte-identical)
     level = primary.level
     if level >= entry:
         return f"📍 Entry ~{_rupiah(entry)}"

@@ -7,6 +7,7 @@ import pandas as pd
 
 from news_breakout.models import TF_WEIGHT, BreakoutSignal, TickerAlert
 from news_breakout.signals.breakout import detect_donchian_breakout
+from news_breakout.signals.elliott.trade_plan import structure_stop
 from news_breakout.signals.elliott.waves import label_current
 from news_breakout.signals.scoring import compute_score_components
 from news_breakout.signals.volume import compute_rvol
@@ -98,6 +99,12 @@ def evaluate_ticker(
         except Exception:
             logger.warning("elliott labeling failed for %s", ticker, exc_info=True)
             alert.wave_context = None
+        try:
+            entry_px = float(daily["Close"].iloc[-1])
+            alert.structure_stop = structure_stop(daily, entry_px, alert.wave_context)
+        except Exception:
+            logger.warning("elliott structure_stop failed for %s", ticker, exc_info=True)
+            alert.structure_stop = None
     components = compute_score_components(
         alert, frames.get("1D"), wave_context=alert.wave_context
     )

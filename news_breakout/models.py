@@ -34,6 +34,7 @@ class TickerAlert:
     ext_pct: float = 0.0
     above_sma50: bool | None = None
     wave_context: "WaveContext | None" = None
+    structure_stop: float | None = None
 
     @property
     def max_rvol(self) -> float:
