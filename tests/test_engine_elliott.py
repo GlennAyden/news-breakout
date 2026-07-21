@@ -60,6 +60,19 @@ def test_elliott_disabled_leaves_context_none():
     assert alert.wave_context is None
 
 
+def test_from_abc_is_set_without_error():
+    # Advisory-only annotation: labeling must set wave_context.from_abc to a bool
+    # (or leave wave_context None) without raising, and must not affect the score.
+    df = _breakout_daily()
+    alert = evaluate_ticker(
+        "ANTM", {"1D": df}, donchian_lookback=20, rvol_window=20,
+        rvol_threshold=2.5, now=NOW,
+    )
+    assert alert is not None
+    if alert.wave_context is not None:
+        assert isinstance(alert.wave_context.from_abc, bool)
+
+
 def test_score_reflects_wave_context():
     # Robust to whatever wave_context the synthetic df produces: the engine must
     # have fed alert.wave_context into scoring, not scored before labeling.

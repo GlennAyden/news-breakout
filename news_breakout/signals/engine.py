@@ -7,6 +7,7 @@ import pandas as pd
 
 from news_breakout.models import TF_WEIGHT, BreakoutSignal, TickerAlert
 from news_breakout.signals.breakout import detect_donchian_breakout
+from news_breakout.signals.elliott.corrective import emerges_from_abc
 from news_breakout.signals.elliott.swings import atr as _atr
 from news_breakout.signals.elliott.trade_plan import structure_stop
 from news_breakout.signals.elliott.waves import label_current
@@ -97,6 +98,8 @@ def evaluate_ticker(
                 daily, scales=elliott_scales, atr_window=elliott_atr_window,
                 max_pivots=elliott_max_pivots, fib_tol=elliott_fib_tolerance,
             )
+            if alert.wave_context is not None:
+                alert.wave_context.from_abc = emerges_from_abc(daily)
         except Exception:
             logger.warning("elliott labeling failed for %s", ticker, exc_info=True)
             alert.wave_context = None

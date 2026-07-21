@@ -42,3 +42,4 @@ class WaveContext:
     invalidation: float | None = None
     fib_targets: dict[str, float] = field(default_factory=dict)
     note: str = ""
+    from_abc: bool = False
