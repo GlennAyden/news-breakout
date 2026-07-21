@@ -26,3 +26,15 @@ def structure_stop(df: pd.DataFrame, entry: float, ctx=None) -> float | None:
         return float(ctx.invalidation)
     sl = _recent_swing_low(df)
     return sl if sl < entry else None
+
+
+def trail_plan(entry: float, stop: float, atr: float, *, activate_r: float = 1.0, mult: float = 2.5) -> dict:
+    """ATR-trailing management plan. `activate` = the +activate_r*R price where trailing
+    starts; `trail_dist` = mult*ATR the stop trails behind the high."""
+    risk = entry - stop
+    return {
+        "risk_pct": risk / entry * 100.0,
+        "activate": entry + activate_r * risk,
+        "trail_dist": mult * atr,
+        "mult": mult,
+    }

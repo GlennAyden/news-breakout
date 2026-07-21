@@ -1,7 +1,8 @@
 import pandas as pd
+import pytest
 
 from news_breakout.signals.elliott.models import WaveContext
-from news_breakout.signals.elliott.trade_plan import _recent_swing_low, structure_stop
+from news_breakout.signals.elliott.trade_plan import _recent_swing_low, structure_stop, trail_plan
 
 
 def _df(lows: list[float]) -> pd.DataFrame:
@@ -59,3 +60,11 @@ def test_recent_swing_low_falls_back_to_20_bar_min_when_no_fractal():
     lows = [float(x) for x in range(50, 70)]
     df = _df(lows)
     assert _recent_swing_low(df, k=3) == min(lows)
+
+
+def test_trail_plan_computes_risk_activate_and_trail_distance():
+    plan = trail_plan(entry=3070, stop=2900, atr=80)
+    assert plan["risk_pct"] == pytest.approx(5.54, abs=0.01)
+    assert plan["activate"] == pytest.approx(3240.0)
+    assert plan["trail_dist"] == pytest.approx(200.0)
+    assert plan["mult"] == pytest.approx(2.5)

@@ -5,6 +5,7 @@ from datetime import datetime
 from news_breakout.models import TF_WEIGHT, BreakoutSignal, TickerAlert
 from news_breakout.news.models import Disclosure
 from news_breakout.signals.elliott.annotate import elliott_block
+from news_breakout.signals.elliott.trade_plan import trail_plan
 
 
 def _rupiah(value: float) -> str:
@@ -51,6 +52,14 @@ def _trade_plan_line(alert: TickerAlert) -> str:
     primary = _primary_signal(alert.signals)
     entry = primary.price
     stop = getattr(alert, "structure_stop", None)
+    atr = getattr(alert, "atr", None)
+    if stop is not None and stop < entry and atr is not None and atr > 0:
+        p = trail_plan(entry, stop, atr)
+        return (
+            f"📍 Rencana: Entry ~{_rupiah(entry)} · Stop (EW) <{_rupiah(stop)} "
+            f"· Risk {p['risk_pct']:.1f}% · Trail 2.5×ATR ~{_rupiah(p['trail_dist'])} "
+            f"stlh +1R (~{_rupiah(p['activate'])})"
+        )
     if stop is not None and stop < entry:
         risk = (entry - stop) / entry * 100
         target = entry + 2 * (entry - stop)
