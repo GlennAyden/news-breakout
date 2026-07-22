@@ -1,3 +1,5 @@
+import threading
+import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -70,3 +72,37 @@ def test_failed_fetch_does_not_extend_ttl():
     cache.fetch(50, now=NOW)
     cache.fetch(50, now=NOW + timedelta(minutes=1))   # still retries: no good cache yet
     assert len(calls) == 2
+
+
+def test_concurrent_fetch_past_ttl_only_fetches_once():
+    # Two threads (mirroring the scan job and news job) both see an expired TTL and
+    # call fetch at the same time. The lock must serialize them so the underlying
+    # fetcher runs exactly once and both callers observe the same fresh result.
+    calls = []
+    calls_lock = threading.Lock()
+
+    def fetcher(page_size, *, now, proxy="", retries=3, **_):
+        with calls_lock:
+            calls.append(now)
+        time.sleep(0.05)  # slow fetch: gives the second thread time to arrive mid-fetch
+        return [_disc(1)], True
+
+    cache = DisclosureCache(200, 10, fetcher=fetcher)
+    cache.fetch(50, now=NOW)  # prime a fetched_at so the TTL below is well past it
+    later = NOW + timedelta(minutes=20)
+
+    results = [None, None]
+
+    def worker(idx):
+        results[idx] = cache.fetch(50, now=later)
+
+    t1 = threading.Thread(target=worker, args=(0,))
+    t2 = threading.Thread(target=worker, args=(1,))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    assert len(calls) == 2                      # one from priming, one from the pair (not two)
+    assert results[0] == results[1] == [_disc(1)]
+    assert cache.consecutive_failures == 0

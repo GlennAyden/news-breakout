@@ -85,9 +85,11 @@ def _load_env_file(env_path: str) -> None:
 
 
 def _load_name_map_file(path: str) -> dict[str, str]:
-    """Optional YAML file of lowercase company name -> ticker; missing file -> {}."""
+    """Optional YAML file of lowercase company name -> ticker; missing/null -> {}."""
+    if not path:
+        return {}
     p = Path(path)
-    if not path or not p.exists():
+    if not p.exists():
         return {}
     data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     if not isinstance(data, dict):
@@ -158,10 +160,10 @@ def load_settings(
         portal_enabled=portal.get("enabled", False),
         portal_sources=portal.get("sources", []),
         portal_name_map={
-            **_load_name_map_file(portal.get("name_map_file", "config/name_map.yaml")),
+            **_load_name_map_file(portal.get("name_map_file", "config/name_map.yaml") or ""),
             **portal.get("name_map", {}),
         },
-        portal_name_map_file=portal.get("name_map_file", "config/name_map.yaml"),
+        portal_name_map_file=portal.get("name_map_file", "config/name_map.yaml") or "",
         portal_summary_sentences=portal.get("summary_sentences", 2),
         portal_max_per_run=portal.get("max_per_run", 20),
         sentiment_enabled=sentiment.get("enabled", True),

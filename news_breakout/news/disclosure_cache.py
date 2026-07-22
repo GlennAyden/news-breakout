@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import datetime, timedelta
 
 from news_breakout.news.idx_source import fetch_disclosures_ex
@@ -18,6 +19,11 @@ class DisclosureCache:
     - On fetch failure: serves the last good list (stale-while-error) and bumps
       ``consecutive_failures``; a success resets it. A failure never refreshes the
       TTL clock, so the next tick tries again.
+    - Thread-safe: the scan job and news job run on different scheduler threads and
+      both call ``fetch``. A lock is held across the whole body so concurrent callers
+      past TTL share a single underlying fetch instead of racing to double-fetch and
+      corrupt ``consecutive_failures``. The second caller blocks until the first
+      finishes, then re-checks the (now fresh) TTL and returns the shared result.
     """
 
     def __init__(self, page_size: int, ttl_minutes: int, *, fetcher=fetch_disclosures_ex):
@@ -27,23 +33,25 @@ class DisclosureCache:
         self._cached: list[Disclosure] = []
         self._fetched_at: datetime | None = None
         self.consecutive_failures = 0
+        self._lock = threading.Lock()
 
     def fetch(self, page_size, *, now, proxy: str = "", retries=None, **_) -> list[Disclosure]:
-        if self._fetched_at is not None and now - self._fetched_at < self._ttl:
-            return self._cached
-        kwargs = {"now": now, "proxy": proxy}
-        if retries is not None:
-            kwargs["retries"] = retries
-        try:
-            items, ok = self._fetcher(self._page_size, **kwargs)
-        except Exception:  # noqa: BLE001 — a fetch crash degrades like a failed fetch
-            items, ok = [], False
-        if ok:
-            self._cached = items
-            self._fetched_at = now
-            self.consecutive_failures = 0
-        else:
-            self.consecutive_failures += 1
-            logger.warning("disclosure cache: fetch failed (%d consecutive); serving %d stale items",
-                           self.consecutive_failures, len(self._cached))
-        return self._cached if not ok else items
+        with self._lock:
+            if self._fetched_at is not None and now - self._fetched_at < self._ttl:
+                return self._cached
+            kwargs = {"now": now, "proxy": proxy}
+            if retries is not None:
+                kwargs["retries"] = retries
+            try:
+                items, ok = self._fetcher(self._page_size, **kwargs)
+            except Exception:  # noqa: BLE001 — a fetch crash degrades like a failed fetch
+                items, ok = [], False
+            if ok:
+                self._cached = items
+                self._fetched_at = now
+                self.consecutive_failures = 0
+            else:
+                self.consecutive_failures += 1
+                logger.warning("disclosure cache: fetch failed (%d consecutive); serving %d stale items",
+                               self.consecutive_failures, len(self._cached))
+            return self._cached if not ok else items

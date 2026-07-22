@@ -346,3 +346,13 @@ def test_missing_name_map_file_is_fine(tmp_path, monkeypatch):
     ), encoding="utf-8")
     s = _load(cfg, monkeypatch)
     assert s.portal_name_map == {}
+
+
+def test_explicit_null_name_map_file_is_fine(tmp_path, monkeypatch):
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text(_MINIMAL_YAML.replace(
+        "portal: {enabled: true}",
+        "portal: {enabled: true, name_map_file: null}",
+    ), encoding="utf-8")
+    s = _load(cfg, monkeypatch)
+    assert s.portal_name_map == {}
