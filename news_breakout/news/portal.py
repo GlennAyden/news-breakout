@@ -34,6 +34,25 @@ def _parse_pubdate(raw: str, now: datetime) -> datetime:
         return now
 
 
+_ATOM = "{http://www.w3.org/2005/Atom}"
+
+
+def _parse_iso(raw: str, now: datetime) -> datetime:
+    try:
+        dt = datetime.fromisoformat((raw or "").replace("Z", "+00:00"))
+        return dt.astimezone(WIB) if dt.tzinfo else dt.replace(tzinfo=WIB)
+    except ValueError:
+        return now
+
+
+def _atom_link(entry) -> str:
+    links = entry.findall(f"{_ATOM}link")
+    for ln in links:
+        if ln.get("rel", "alternate") == "alternate" and ln.get("href"):
+            return ln.get("href").strip()
+    return (links[0].get("href", "").strip() if links else "")
+
+
 def _source_name(url: str) -> str:
     host = urlparse(url).netloc or url
     return host.replace("www.", "")
@@ -53,6 +72,15 @@ def parse_rss(xml_text: str, source: str, *, now: datetime) -> list[PortalNews]:
         summary = re.sub(r"<[^>]+>", " ", item.findtext("description") or "").strip()
         out.append(PortalNews("", title, _parse_pubdate(item.findtext("pubDate") or "", now),
                               link, source, summary=summary))
+    for entry in root.iter(f"{_ATOM}entry"):
+        title = (entry.findtext(f"{_ATOM}title") or "").strip()
+        link = _atom_link(entry)
+        if not title or not link:
+            continue
+        raw_sum = entry.findtext(f"{_ATOM}summary") or entry.findtext(f"{_ATOM}content") or ""
+        summary = re.sub(r"<[^>]+>", " ", raw_sum).strip()
+        raw_ts = entry.findtext(f"{_ATOM}published") or entry.findtext(f"{_ATOM}updated") or ""
+        out.append(PortalNews("", title, _parse_iso(raw_ts, now), link, source, summary=summary))
     return out
 
 
