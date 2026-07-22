@@ -36,6 +36,37 @@ def test_evaluate_scan_returns_sorted_alerts_without_sending():
     assert [a.ticker for a in alerts] == ["HIGHX", "LOWX"]  # higher extension ranks first
 
 
+def test_scan_once_min_quality_score_filters_low_alerts():
+    # HIGHX ext capped at 10% -> score 6.0; LOWX ext ~0.9% -> score ~3.27
+    daily = {"HIGHX": _breakout(121), "LOWX": _breakout(111)}
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    out = scan_once(_settings(min_quality_score=5.0), daily, {}, store, now=NOW,
+                    sender=sender, tickers=["HIGHX", "LOWX"])
+    assert out == ["HIGHX"] and len(sent) == 1
+    store.close()
+
+
+def test_scan_once_news_boost_lifts_alert_over_floor():
+    daily = {"LOWX": _breakout(111)}  # score ~3.27 alone, +3.0 catalyst boost -> ~6.27
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    out = scan_once(_settings(min_quality_score=5.0), daily, {}, store, now=NOW,
+                    sender=sender, catalysts={"LOWX": None}, tickers=["LOWX"])
+    assert out == ["LOWX"]
+    store.close()
+
+
 def test_scan_once_max_alerts_caps_sends():
     daily = {"A": _breakout(121), "B": _breakout(120), "C": _breakout(119)}
     store = DedupStore(":memory:")

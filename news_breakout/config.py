@@ -12,6 +12,7 @@ class Settings(BaseModel):
     donchian_lookback: int
     rvol_threshold: float
     rvol_window: int
+    min_quality_score: float | None = None
     history_days: int
     range_lookback: int
     range_max_width_pct: float
@@ -111,6 +112,7 @@ def load_settings(
         donchian_lookback=signals["donchian_lookback"],
         rvol_threshold=signals["rvol_threshold"],
         rvol_window=signals["rvol_window"],
+        min_quality_score=signals.get("min_quality_score"),
         history_days=data["history_days"],
         range_lookback=signals["range_lookback"],
         range_max_width_pct=signals["range_max_width_pct"],

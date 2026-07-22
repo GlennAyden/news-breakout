@@ -29,6 +29,10 @@ signals:
   donchian_lookback: 20
   rvol_threshold: 2.5   # raised 2.0->2.5 per 5y backtest: higher RVOL -> better forward returns, ~20% fewer/more-selective alerts
   rvol_window: 20
+  # Send floor on quality_score (2026-07-22 gate): drops the low-score tail
+  # (avg fwd10 +3.9% -> +5.1%, keeps 86% of >10% runners, ~7.5 alerts/wk).
+  # Comment out (or set null) to send everything again.
+  min_quality_score: 5.5
   range_lookback: 30
   range_max_width_pct: 0.15
 
