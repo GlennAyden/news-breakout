@@ -1,5 +1,3 @@
-import os
-
 from news_breakout.config import load_settings
 
 # Minimal config covering every required top-level section, used by tests that only
@@ -21,15 +19,15 @@ _MINIMAL_YAML = (
 )
 
 
-def _load(cfg_path):
+def _load(cfg_path, monkeypatch):
     """Load settings from cfg_path, monkeypatching in the required TELEGRAM_* env vars.
 
     Points env_path at a file that does not exist so `_load_env_file` no-ops and the
-    directly-set os.environ values are what `load_settings` reads.
+    monkeypatched env vars are what `load_settings` reads.
     """
-    os.environ["TELEGRAM_BOT_TOKEN"] = "a:b"
-    os.environ["TELEGRAM_BREAKOUT_CHAT_ID"] = "-1"
-    os.environ["TELEGRAM_NEWS_CHAT_ID"] = "-2"
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "a:b")
+    monkeypatch.setenv("TELEGRAM_BREAKOUT_CHAT_ID", "-1")
+    monkeypatch.setenv("TELEGRAM_NEWS_CHAT_ID", "-2")
     return load_settings(str(cfg_path), env_path=str(cfg_path.parent / "absent.env"))
 
 
@@ -291,7 +289,7 @@ def test_load_settings_daily_shift_defaults_when_absent(tmp_path):
     assert s.daily_shift_history_days == 90
 
 
-def test_new_news_and_portal_keys_load(tmp_path):
+def test_new_news_and_portal_keys_load(tmp_path, monkeypatch):
     cfg = tmp_path / "c.yaml"
     cfg.write_text(_MINIMAL_YAML.replace(
         "news_poll_interval_minutes: 60",
@@ -300,7 +298,7 @@ def test_new_news_and_portal_keys_load(tmp_path):
         "poll_interval_market_minutes: 10, poll_interval_offhours_minutes: 45, "
         "watchlist_passthrough: false, dedup_retention_days: 30",
     ), encoding="utf-8")
-    s = _load(cfg)
+    s = _load(cfg, monkeypatch)
     assert s.news_booster_page_size == 300
     assert s.news_fetch_cache_ttl_minutes == 5
     assert s.news_outage_max_failures == 2
@@ -310,10 +308,10 @@ def test_new_news_and_portal_keys_load(tmp_path):
     assert s.news_dedup_retention_days == 30
 
 
-def test_new_keys_default_and_offhours_falls_back_to_legacy_interval(tmp_path):
+def test_new_keys_default_and_offhours_falls_back_to_legacy_interval(tmp_path, monkeypatch):
     cfg = tmp_path / "c.yaml"
     cfg.write_text(_MINIMAL_YAML, encoding="utf-8")  # legacy config, no new keys
-    s = _load(cfg)
+    s = _load(cfg, monkeypatch)
     assert s.news_booster_page_size == 200
     assert s.news_fetch_cache_ttl_minutes == 10
     assert s.news_outage_max_failures == 4
@@ -326,7 +324,7 @@ def test_new_keys_default_and_offhours_falls_back_to_legacy_interval(tmp_path):
     assert s.portal_proxy == ""
 
 
-def test_name_map_file_merges_under_inline(tmp_path):
+def test_name_map_file_merges_under_inline(tmp_path, monkeypatch):
     nm = tmp_path / "name_map.yaml"
     nm.write_text("aneka tambang: XXXX\nbank rakyat: BBRI\n", encoding="utf-8")
     cfg = tmp_path / "c.yaml"
@@ -335,16 +333,16 @@ def test_name_map_file_merges_under_inline(tmp_path):
         "portal: {enabled: true, name_map_file: %s, name_map: {aneka tambang: ANTM}}"
         % nm.as_posix(),
     ), encoding="utf-8")
-    s = _load(cfg)
+    s = _load(cfg, monkeypatch)
     assert s.portal_name_map["aneka tambang"] == "ANTM"   # inline wins
     assert s.portal_name_map["bank rakyat"] == "BBRI"     # file entry kept
 
 
-def test_missing_name_map_file_is_fine(tmp_path):
+def test_missing_name_map_file_is_fine(tmp_path, monkeypatch):
     cfg = tmp_path / "c.yaml"
     cfg.write_text(_MINIMAL_YAML.replace(
         "portal: {enabled: true}",
         "portal: {enabled: true, name_map_file: %s}" % (tmp_path / "absent.yaml").as_posix(),
     ), encoding="utf-8")
-    s = _load(cfg)
+    s = _load(cfg, monkeypatch)
     assert s.portal_name_map == {}
