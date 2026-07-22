@@ -132,3 +132,23 @@ def test_outage_warning_below_threshold_and_callable_streak():
                   failure_streak=lambda: 5)        # callable form
     assert any("gagal 5 kali" in t for t in sent)
     store.close()
+
+
+from news_breakout.news.feed import _extract_leads
+
+
+class _Item:
+    def __init__(self, url):
+        self.url = url
+
+
+def test_extract_leads_preserves_order_and_degrades():
+    items = [_Item("a"), _Item("boom"), _Item("c")]
+
+    def extractor(url):
+        if url == "boom":
+            raise RuntimeError("net down")
+        return f"body-{url}"
+
+    for workers in (1, 4):
+        assert _extract_leads(items, extractor, workers) == ["body-a", "", "body-c"]

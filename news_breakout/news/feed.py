@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 from news_breakout.news.idx_source import fetch_disclosures
 from news_breakout.news.curated import is_price_sensitive
@@ -10,6 +11,19 @@ from news_breakout.news.portal_dedup import is_duplicate, normalize_title
 from news_breakout.alerts.telegram import send_message
 
 logger = logging.getLogger("news_breakout")
+
+
+def _extract_leads(items, extractor, workers: int) -> list[str]:
+    """Fetch article bodies for ``items`` (ordered); any failure degrades to ""."""
+    def one(it):
+        try:
+            return extractor(it.url) or ""
+        except Exception:  # noqa: BLE001 — a fetch failure must not drop the item
+            return ""
+    if workers <= 1:
+        return [one(it) for it in items]
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        return list(ex.map(one, items))
 
 
 def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_disclosures,
@@ -66,11 +80,8 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
     items = [it for it in items if not store.news_already_sent(it.url)]
 
     # extractive summary from the full article body (fall back to the RSS description)
-    for it in items:
-        try:
-            body = extractor(it.url)
-        except Exception:  # noqa: BLE001 — a fetch failure must not drop the item
-            body = ""
+    bodies = _extract_leads(items, extractor, settings.portal_fetch_workers)
+    for it, body in zip(items, bodies):
         body = strip_leading_title(body, it.title)  # avoid echoing the hyperlinked headline
         it.lead = lead_summary(body or it.summary, settings.portal_summary_sentences)
 
