@@ -86,3 +86,44 @@ def test_send_message_omits_parse_mode_by_default():
     payload = fake.calls[0]["json"]
     assert "parse_mode" not in payload
     assert "disable_web_page_preview" not in payload
+
+
+class _Resp:
+    def __init__(self, status_code, body=None):
+        self.status_code = status_code
+        self._body = body or {}
+
+    def json(self):
+        if isinstance(self._body, Exception):
+            raise self._body
+        return self._body
+
+
+class _SeqClient:
+    def __init__(self, responses):
+        self._responses = list(responses)
+
+    def post(self, url, json=None, timeout=None):
+        return self._responses.pop(0)
+
+
+def test_429_honors_retry_after_capped_at_30():
+    sleeps = []
+    client = _SeqClient([
+        _Resp(429, {"parameters": {"retry_after": 7}}),
+        _Resp(429, {"parameters": {"retry_after": 99}}),
+        _Resp(200),
+    ])
+    ok = send_message("t", "c", "x", dry_run=False, client=client,
+                      retries=2, sleeper=sleeps.append)
+    assert ok is True
+    assert sleeps == [7, 30]
+
+
+def test_429_malformed_body_falls_back_to_delay_table():
+    sleeps = []
+    client = _SeqClient([_Resp(429, RuntimeError("no json")), _Resp(200)])
+    ok = send_message("t", "c", "x", dry_run=False, client=client,
+                      retries=1, sleeper=sleeps.append)
+    assert ok is True
+    assert sleeps == [2]   # first entry of _SEND_DELAYS

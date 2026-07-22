@@ -33,6 +33,7 @@ def send_message(
         payload["disable_web_page_preview"] = True
     try:
         for attempt in range(retries + 1):
+            delay = None
             try:
                 resp = client.post(
                     f"https://api.telegram.org/bot{bot_token}/sendMessage",
@@ -41,10 +42,17 @@ def send_message(
                 )
                 if resp.status_code == 200:
                     return True
+                if resp.status_code == 429:
+                    try:
+                        retry_after = int(resp.json().get("parameters", {}).get("retry_after", 0))
+                        delay = min(max(retry_after, 1), 30)
+                    except Exception:  # noqa: BLE001 — malformed body -> default backoff
+                        delay = None
             except Exception:  # noqa: BLE001 — network failures are retryable, never propagate
                 pass
             if attempt < retries:
-                sleeper(_SEND_DELAYS[min(attempt, len(_SEND_DELAYS) - 1)])
+                sleeper(delay if delay is not None
+                        else _SEND_DELAYS[min(attempt, len(_SEND_DELAYS) - 1)])
         return False
     finally:
         if close_after:
