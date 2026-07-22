@@ -1,5 +1,35 @@
 from news_breakout.config import load_settings
 
+# Minimal config covering every required top-level section, used by tests that only
+# care about a handful of optional keys. `news:` and `portal:` are written as
+# recognizable substrings so tests can .replace() specific keys in without
+# reproducing the whole document.
+_MINIMAL_YAML = (
+    "watchlist: [ANTM]\n"
+    "signals: {donchian_lookback: 20, rvol_threshold: 2.0, rvol_window: 20, "
+    "range_lookback: 30, range_max_width_pct: 0.15}\n"
+    "data: {history_days: 120, intraday_period_days: 60}\n"
+    "runtime: {dry_run: true}\n"
+    "schedule: {market_open: \"09:00\", market_close: \"16:00\", scan_interval_minutes: 30, "
+    "weekend_scan_day: \"sat\", holidays: []}\n"
+    "universe: {candidates: [], min_price: 50, min_daily_value: 1000000000}\n"
+    "news: {curated_keywords: [dividen], disclosure_page_size: 50, "
+    "news_poll_interval_minutes: 60}\n"
+    "portal: {enabled: true}\n"
+)
+
+
+def _load(cfg_path, monkeypatch):
+    """Load settings from cfg_path, monkeypatching in the required TELEGRAM_* env vars.
+
+    Points env_path at a file that does not exist so `_load_env_file` no-ops and the
+    monkeypatched env vars are what `load_settings` reads.
+    """
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "a:b")
+    monkeypatch.setenv("TELEGRAM_BREAKOUT_CHAT_ID", "-1")
+    monkeypatch.setenv("TELEGRAM_NEWS_CHAT_ID", "-2")
+    return load_settings(str(cfg_path), env_path=str(cfg_path.parent / "absent.env"))
+
 
 def test_load_settings_merges_yaml_and_env(tmp_path):
     cfg = tmp_path / "config.yaml"
@@ -301,3 +331,72 @@ def test_load_settings_daily_shift_defaults_when_absent(tmp_path):
     assert s.daily_shift_min_price == 50
     assert s.daily_shift_max_alerts == 15
     assert s.daily_shift_history_days == 90
+
+
+def test_new_news_and_portal_keys_load(tmp_path, monkeypatch):
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text(_MINIMAL_YAML.replace(
+        "news_poll_interval_minutes: 60",
+        "news_poll_interval_minutes: 60, booster_page_size: 300, "
+        "fetch_cache_ttl_minutes: 5, news_outage_max_failures: 2, "
+        "poll_interval_market_minutes: 10, poll_interval_offhours_minutes: 45, "
+        "watchlist_passthrough: false, dedup_retention_days: 30",
+    ), encoding="utf-8")
+    s = _load(cfg, monkeypatch)
+    assert s.news_booster_page_size == 300
+    assert s.news_fetch_cache_ttl_minutes == 5
+    assert s.news_outage_max_failures == 2
+    assert s.poll_interval_market_minutes == 10
+    assert s.poll_interval_offhours_minutes == 45
+    assert s.news_watchlist_passthrough is False
+    assert s.news_dedup_retention_days == 30
+
+
+def test_new_keys_default_and_offhours_falls_back_to_legacy_interval(tmp_path, monkeypatch):
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text(_MINIMAL_YAML, encoding="utf-8")  # legacy config, no new keys
+    s = _load(cfg, monkeypatch)
+    assert s.news_booster_page_size == 200
+    assert s.news_fetch_cache_ttl_minutes == 10
+    assert s.news_outage_max_failures == 4
+    assert s.poll_interval_market_minutes == 15
+    assert s.poll_interval_offhours_minutes == 60   # falls back to news_poll_interval_minutes
+    assert s.news_watchlist_passthrough is True
+    assert s.news_dedup_retention_days == 90
+    assert s.portal_dup_title_threshold == 0.55
+    assert s.portal_fetch_workers == 4
+    assert s.portal_proxy == ""
+
+
+def test_name_map_file_merges_under_inline(tmp_path, monkeypatch):
+    nm = tmp_path / "name_map.yaml"
+    nm.write_text("aneka tambang: XXXX\nbank rakyat: BBRI\n", encoding="utf-8")
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text(_MINIMAL_YAML.replace(
+        "portal: {enabled: true}",
+        "portal: {enabled: true, name_map_file: %s, name_map: {aneka tambang: ANTM}}"
+        % nm.as_posix(),
+    ), encoding="utf-8")
+    s = _load(cfg, monkeypatch)
+    assert s.portal_name_map["aneka tambang"] == "ANTM"   # inline wins
+    assert s.portal_name_map["bank rakyat"] == "BBRI"     # file entry kept
+
+
+def test_missing_name_map_file_is_fine(tmp_path, monkeypatch):
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text(_MINIMAL_YAML.replace(
+        "portal: {enabled: true}",
+        "portal: {enabled: true, name_map_file: %s}" % (tmp_path / "absent.yaml").as_posix(),
+    ), encoding="utf-8")
+    s = _load(cfg, monkeypatch)
+    assert s.portal_name_map == {}
+
+
+def test_explicit_null_name_map_file_is_fine(tmp_path, monkeypatch):
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text(_MINIMAL_YAML.replace(
+        "portal: {enabled: true}",
+        "portal: {enabled: true, name_map_file: null}",
+    ), encoding="utf-8")
+    s = _load(cfg, monkeypatch)
+    assert s.portal_name_map == {}

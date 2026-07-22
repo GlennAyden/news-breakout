@@ -230,6 +230,13 @@ news:
   news_poll_interval_minutes: 60
   booster_window_hours: 48
   priority_boost: 3.0
+  booster_page_size: 200            # canonical IDX fetch size (shared cache + booster window)
+  fetch_cache_ttl_minutes: 10       # disclosure cache TTL (news job + scan share one fetch)
+  news_outage_max_failures: 4       # consecutive fetch failures before a once/day Telegram warning
+  poll_interval_market_minutes: 15  # news poll cadence during market hours
+  poll_interval_offhours_minutes: 60  # cadence outside market hours
+  watchlist_passthrough: true       # watchlist tickers bypass the keyword gate
+  dedup_retention_days: 90          # prune sent-news bookkeeping older than this
 
 portal:
   enabled: true           # ticker-matched market news -> News channel
@@ -240,8 +247,17 @@ portal:
     - {url: https://katadata.co.id/rss/finansial, parser: rss}
     - {url: https://emitentrust.com/category/stock-and-market/feed/, parser: rss}
     - {url: https://emitennews.com/category/emiten, parser: emitennews}
+    # 403 dari IP datacenter — aktifkan bila ada proxy residensial (isi `proxy:` per sumber
+    # atau `portal.proxy` global):
+    # - {url: https://www.kontan.co.id/rss, parser: rss}
+    # - {url: https://www.bisnis.com/index, parser: bisnis}
+    # - {url: https://investor.id/market, parser: investor}
   summary_sentences: 2    # extractive lead length (sentences)
   max_per_run: 20         # anti-flood cap: max NEW items sent per hourly run
+  dup_title_threshold: 0.55  # near-dup Jaccard threshold across portals (0 disables); 0.6 misses morphology-variant headlines (bagikan/dibagikan)
+  fetch_workers: 4          # parallel article-extraction workers
+  proxy: ""                 # global portal proxy; per-source `proxy:` overrides
+  name_map_file: config/name_map.yaml  # optional generated map; inline name_map overrides it
   name_map:               # lowercase company name -> ticker; extend/verify for your watchlist
     aneka tambang: ANTM
     antam: ANTM

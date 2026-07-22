@@ -34,6 +34,25 @@ def _parse_pubdate(raw: str, now: datetime) -> datetime:
         return now
 
 
+_ATOM = "{http://www.w3.org/2005/Atom}"
+
+
+def _parse_iso(raw: str, now: datetime) -> datetime:
+    try:
+        dt = datetime.fromisoformat((raw or "").replace("Z", "+00:00"))
+        return dt.astimezone(WIB) if dt.tzinfo else dt.replace(tzinfo=WIB)
+    except ValueError:
+        return now
+
+
+def _atom_link(entry) -> str:
+    links = entry.findall(f"{_ATOM}link")
+    for ln in links:
+        if ln.get("rel", "alternate") == "alternate" and ln.get("href"):
+            return ln.get("href").strip()
+    return (links[0].get("href", "").strip() if links else "")
+
+
 def _source_name(url: str) -> str:
     host = urlparse(url).netloc or url
     return host.replace("www.", "")
@@ -53,13 +72,22 @@ def parse_rss(xml_text: str, source: str, *, now: datetime) -> list[PortalNews]:
         summary = re.sub(r"<[^>]+>", " ", item.findtext("description") or "").strip()
         out.append(PortalNews("", title, _parse_pubdate(item.findtext("pubDate") or "", now),
                               link, source, summary=summary))
+    for entry in root.iter(f"{_ATOM}entry"):
+        title = (entry.findtext(f"{_ATOM}title") or "").strip()
+        link = _atom_link(entry)
+        if not title or not link:
+            continue
+        raw_sum = entry.findtext(f"{_ATOM}summary") or entry.findtext(f"{_ATOM}content") or ""
+        summary = re.sub(r"<[^>]+>", " ", raw_sum).strip()
+        raw_ts = entry.findtext(f"{_ATOM}published") or entry.findtext(f"{_ATOM}updated") or ""
+        out.append(PortalNews("", title, _parse_iso(raw_ts, now), link, source, summary=summary))
     return out
 
 
 def match_ticker(text: str, watchlist: list[str], name_map: dict[str, str]) -> str:
     low = text.lower()
     for name, tk in name_map.items():          # company name first (higher precision)
-        if name.lower() in low:
+        if re.search(rf"\b{re.escape(name.lower())}\b", low):
             return tk
     for tk in watchlist:                         # then ticker code as a whole word
         if re.search(rf"\b{re.escape(tk)}\b", text):
@@ -68,17 +96,20 @@ def match_ticker(text: str, watchlist: list[str], name_map: dict[str, str]) -> s
 
 
 def has_corp_action(text: str, keywords: list[str]) -> bool:
-    low = text.lower()
-    return any(kw.lower() in low for kw in keywords)
+    from news_breakout.news.curated import keyword_match
+    return keyword_match(text, keywords)
 
 
-def _default_http_get(url: str) -> str:
+def _default_http_get(url: str, proxy: str = "") -> str:
     from curl_cffi import requests as creq
-    return creq.Session(impersonate="chrome120").get(url, timeout=30).text
+    kwargs = {"impersonate": "chrome120"}
+    if proxy:
+        kwargs["proxies"] = {"http": proxy, "https": proxy}
+    return creq.Session(**kwargs).get(url, timeout=30).text
 
 
 def fetch_portal_news(sources, watchlist, name_map, *, now, http_get=None,
-                      corp_keywords=None) -> list[PortalNews]:
+                      corp_keywords=None, global_proxy: str = "") -> list[PortalNews]:
     # Local import avoids a circular import: portal_html.py imports PortalNews
     # from this module, so this module cannot import portal_html at load time.
     from news_breakout.news.portal_html import parse_bisnis, parse_emitennews, parse_investor
@@ -98,8 +129,9 @@ def fetch_portal_news(sources, watchlist, name_map, *, now, http_get=None,
         if not url:
             continue
         parser_name = "rss" if isinstance(src, str) else src.get("parser", "rss")
+        proxy = (src.get("proxy", "") if isinstance(src, dict) else "") or global_proxy
         try:
-            text = http_get(url)
+            text = http_get(url, proxy)
         except Exception:  # noqa: BLE001
             logger.warning("portal fetch failed: %s", url)
             continue
