@@ -54,7 +54,7 @@ def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_di
         if not sender(settings.telegram_bot_token, settings.telegram_news_chat_id,
                       format_disclosure(d), dry_run=settings.dry_run):
             continue
-        store.news_mark_sent(d.disclosure_id)
+        store.news_mark_sent(d.disclosure_id, sent_at=f"{now:%Y-%m-%d}")
         sent_ids.append(d.disclosure_id)
     logger.info("news feed: %d curated, %d newly sent", len(curated), len(sent_ids))
     return sent_ids
@@ -124,7 +124,7 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
             continue
         tokens = normalize_title(it.title)
         if is_duplicate(tokens, _seen(it.ticker), threshold):
-            store.news_mark_sent(it.url)   # suppressed near-dup must not resurface
+            store.news_mark_sent(it.url, sent_at=f"{now:%Y-%m-%d}")   # suppressed near-dup must not resurface
             logger.info("portal near-dup suppressed: %s", it.title)
             continue
         if sent:   # space consecutive sends (Telegram per-chat rate limit)
@@ -133,7 +133,7 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
                       format_portal(it), dry_run=settings.dry_run,
                       parse_mode="HTML", disable_preview=True):
             continue
-        store.news_mark_sent(it.url)
+        store.news_mark_sent(it.url, sent_at=f"{now:%Y-%m-%d}")
         store.add_title(day, it.ticker, " ".join(sorted(tokens)))
         _seen(it.ticker).append(tokens)
         sent.append(it.url)
