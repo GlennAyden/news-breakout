@@ -152,3 +152,17 @@ def test_extract_leads_preserves_order_and_degrades():
 
     for workers in (1, 4):
         assert _extract_leads(items, extractor, workers) == ["body-a", "", "body-c"]
+
+
+def test_sends_are_spaced_but_not_before_first():
+    store = DedupStore(":memory:")
+    sleeps = []
+
+    def fetcher(page_size, *, now, proxy="", retries=3, http_get=None, sleeper=None):
+        return [_disc("a", "Pembagian Dividen"), _disc("b", "Rencana Akuisisi"),
+                _disc("c", "Dividen Interim")]
+
+    run_news_feed(_settings(), store, now=NOW, sender=lambda *a, **k: True,
+                  fetcher=fetcher, sleeper=sleeps.append)
+    assert sleeps == [1.05, 1.05]   # 3 sends -> 2 gaps
+    store.close()

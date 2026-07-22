@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from news_breakout.news.idx_source import fetch_disclosures
@@ -11,6 +12,8 @@ from news_breakout.news.portal_dedup import is_duplicate, normalize_title
 from news_breakout.alerts.telegram import send_message
 
 logger = logging.getLogger("news_breakout")
+
+SEND_SPACING_SECONDS = 1.05
 
 
 def _extract_leads(items, extractor, workers: int) -> list[str]:
@@ -27,7 +30,7 @@ def _extract_leads(items, extractor, workers: int) -> list[str]:
 
 
 def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_disclosures,
-                  failure_streak=0) -> list[str]:
+                  failure_streak=0, sleeper=time.sleep) -> list[str]:
     disclosures = fetcher(settings.disclosure_page_size, now=now, proxy=settings.idx_proxy)
     streak = failure_streak() if callable(failure_streak) else failure_streak
     if streak >= settings.news_outage_max_failures:
@@ -46,6 +49,8 @@ def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_di
     for d in curated:
         if store.news_already_sent(d.disclosure_id):
             continue
+        if sent_ids:   # space consecutive sends (Telegram per-chat rate limit)
+            sleeper(SEND_SPACING_SECONDS)
         if not sender(settings.telegram_bot_token, settings.telegram_news_chat_id,
                       format_disclosure(d), dry_run=settings.dry_run):
             continue
@@ -56,7 +61,7 @@ def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_di
 
 
 def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_portal_news,
-                    extractor=None, classifier=None) -> list[str]:
+                    extractor=None, classifier=None, sleeper=time.sleep) -> list[str]:
     if not settings.portal_enabled:
         return []
     from news_breakout.news.extract import fetch_article_text, lead_summary, strip_leading_title
@@ -122,6 +127,8 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
             store.news_mark_sent(it.url)   # suppressed near-dup must not resurface
             logger.info("portal near-dup suppressed: %s", it.title)
             continue
+        if sent:   # space consecutive sends (Telegram per-chat rate limit)
+            sleeper(SEND_SPACING_SECONDS)
         if not sender(settings.telegram_bot_token, settings.telegram_news_chat_id,
                       format_portal(it), dry_run=settings.dry_run,
                       parse_mode="HTML", disable_preview=True):
