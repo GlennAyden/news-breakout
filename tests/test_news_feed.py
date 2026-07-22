@@ -62,3 +62,33 @@ def test_news_feed_failed_send_not_marked():
     assert first == []
     assert store.news_already_sent("a") is False   # failed send -> not marked, retries next poll
     store.close()
+
+
+def test_watchlist_disclosure_bypasses_keyword_gate():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    def fetcher(page_size, *, now, proxy="", retries=3, http_get=None, sleeper=None):
+        return [Disclosure("ANTM", "Public Expose", NOW, "w1", "url"),   # watchlist, no keyword
+                Disclosure("BBRI", "Public Expose", NOW, "n1", "url")]   # neither
+
+    ids = run_news_feed(_settings(), store, now=NOW, sender=sender, fetcher=fetcher)
+    assert ids == ["w1"]
+    store.close()
+
+
+def test_watchlist_passthrough_disabled_keeps_keyword_gate():
+    store = DedupStore(":memory:")
+    s = _settings().model_copy(update={"news_watchlist_passthrough": False})
+
+    def fetcher(page_size, *, now, proxy="", retries=3, http_get=None, sleeper=None):
+        return [Disclosure("ANTM", "Public Expose", NOW, "w1", "url")]
+
+    ids = run_news_feed(s, store, now=NOW,
+                        sender=lambda *a, **k: True, fetcher=fetcher)
+    assert ids == []
+    store.close()

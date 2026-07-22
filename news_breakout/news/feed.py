@@ -13,7 +13,9 @@ logger = logging.getLogger("news_breakout")
 
 def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_disclosures) -> list[str]:
     disclosures = fetcher(settings.disclosure_page_size, now=now, proxy=settings.idx_proxy)
-    curated = [d for d in disclosures if is_price_sensitive(d, settings.curated_keywords)]
+    watchset = set(settings.watchlist) if settings.news_watchlist_passthrough else set()
+    curated = [d for d in disclosures
+               if is_price_sensitive(d, settings.curated_keywords) or d.ticker in watchset]
     curated.sort(key=lambda d: d.timestamp)  # oldest first
     sent_ids: list[str] = []
     for d in curated:
