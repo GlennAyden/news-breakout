@@ -68,8 +68,8 @@ def match_ticker(text: str, watchlist: list[str], name_map: dict[str, str]) -> s
 
 
 def has_corp_action(text: str, keywords: list[str]) -> bool:
-    low = text.lower()
-    return any(kw.lower() in low for kw in keywords)
+    from news_breakout.news.curated import keyword_match
+    return keyword_match(text, keywords)
 
 
 def _default_http_get(url: str) -> str:
