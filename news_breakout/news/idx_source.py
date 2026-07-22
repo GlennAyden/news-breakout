@@ -80,8 +80,13 @@ def _default_http_get(url: str, proxy: str) -> str:
     return session.get(url, headers=_HEADERS, timeout=30).text
 
 
-def fetch_disclosures(page_size: int = 50, *, now, proxy: str = "", retries: int = 3,
-                      http_get=None, sleeper=time.sleep) -> list[Disclosure]:
+def fetch_disclosures_ex(page_size: int = 50, *, now, proxy: str = "", retries: int = 3,
+                         http_get=None, sleeper=time.sleep) -> tuple[list[Disclosure], bool]:
+    """Like fetch_disclosures, but also reports whether the fetch itself succeeded.
+
+    ok=True means a response parsed to {"Replies": [...]} — an empty list of
+    disclosures with ok=True is a genuine empty page, not an outage.
+    """
     if http_get is None:
         http_get = _default_http_get
     url = _API.format(page_size=page_size)
@@ -93,8 +98,14 @@ def fetch_disclosures(page_size: int = 50, *, now, proxy: str = "", retries: int
         except Exception:  # noqa: BLE001 — Cloudflare HTML / network / decode failure
             data = None
         if isinstance(data, dict) and isinstance(data.get("Replies"), list):
-            return parse_disclosures(data, now=now)
+            return parse_disclosures(data, now=now), True
         if attempt < retries:
             sleeper(_RETRY_DELAYS[min(attempt, len(_RETRY_DELAYS) - 1)])
     logger.warning("IDX disclosure fetch failed after %d attempts (Cloudflare/block?)", retries + 1)
-    return []
+    return [], False
+
+
+def fetch_disclosures(page_size: int = 50, *, now, proxy: str = "", retries: int = 3,
+                      http_get=None, sleeper=time.sleep) -> list[Disclosure]:
+    return fetch_disclosures_ex(page_size, now=now, proxy=proxy, retries=retries,
+                                http_get=http_get, sleeper=sleeper)[0]

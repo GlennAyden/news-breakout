@@ -1,5 +1,11 @@
 import pandas as pd
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from news_breakout.data.yfinance_source import fetch_daily_ohlcv
+from news_breakout.news.idx_source import fetch_disclosures_ex
+
+NOW = datetime(2026, 7, 18, 9, 0, tzinfo=ZoneInfo("Asia/Jakarta"))
 
 
 def _mi(per):  # yfinance-style (Ticker, Field) columns
@@ -57,3 +63,20 @@ def test_all_exceptions_returns_empty():
 
     out = fetch_daily_ohlcv(["ANTM"], 10, downloader=always_raise, retries=1, sleeper=lambda s: None)
     assert out == {}
+
+
+def test_ex_ok_true_on_valid_even_empty_payload():
+    items, ok = fetch_disclosures_ex(
+        50, now=NOW, retries=0, http_get=lambda url, proxy: '{"Replies": []}')
+    assert ok is True
+    assert items == []
+
+
+def test_ex_ok_false_on_cloudflare_html():
+    calls = []
+    items, ok = fetch_disclosures_ex(
+        50, now=NOW, retries=1, sleeper=lambda s: calls.append(s),
+        http_get=lambda url, proxy: "<html>blocked</html>")
+    assert ok is False
+    assert items == []
+    assert calls == [5]   # existing retry delay table
