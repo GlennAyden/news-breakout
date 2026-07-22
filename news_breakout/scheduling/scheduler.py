@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
@@ -13,13 +13,24 @@ def should_scan_now(now: datetime, settings) -> bool:
     )
 
 
+def should_poll_news(now, last_run, *, market_open: bool, offhours_minutes: int) -> bool:
+    """Elapsed-time gating for the news job (interval ticks are NOT clock-aligned).
+
+    During market hours every tick polls; off-hours a tick only polls once at
+    least ``offhours_minutes`` have passed since the last completed poll.
+    """
+    if market_open or last_run is None:
+        return True
+    return now - last_run >= timedelta(minutes=offhours_minutes)
+
+
 def build_scheduler(settings, *, scan_job, weekend_job, news_job,
                     daily_detect_job=None, daily_reminder_job=None,
                     tz: str = "Asia/Jakarta") -> BlockingScheduler:
     sched = BlockingScheduler(timezone=tz)
     sched.add_job(scan_job, "interval", minutes=settings.scan_interval_minutes, id="scan")
     sched.add_job(weekend_job, "cron", day_of_week=settings.weekend_scan_day, hour=8, id="weekend")
-    sched.add_job(news_job, "interval", minutes=settings.news_poll_interval_minutes, id="news")
+    sched.add_job(news_job, "interval", minutes=settings.poll_interval_market_minutes, id="news")
     if settings.daily_shift_enabled and daily_detect_job is not None:
         sched.add_job(daily_detect_job, "cron", day_of_week="mon-fri", hour=16, minute=30,
                       id="daily_detect")
