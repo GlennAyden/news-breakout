@@ -135,6 +135,12 @@ def test_match_ticker_no_match_returns_empty():
     assert tk == ""
 
 
+def test_name_match_requires_word_boundary():
+    name_map = {"timah": "TINS"}
+    assert match_ticker("Harga timah dunia naik", [], name_map) == "TINS"
+    assert match_ticker("Pertimahan nasional dibahas", [], name_map) == ""
+
+
 # ---- fetch_portal_news -------------------------------------------------------
 
 def test_fetch_portal_news_keeps_only_ticker_matches_and_skips_failing_source():

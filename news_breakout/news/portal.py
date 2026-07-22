@@ -59,7 +59,7 @@ def parse_rss(xml_text: str, source: str, *, now: datetime) -> list[PortalNews]:
 def match_ticker(text: str, watchlist: list[str], name_map: dict[str, str]) -> str:
     low = text.lower()
     for name, tk in name_map.items():          # company name first (higher precision)
-        if name.lower() in low:
+        if re.search(rf"\b{re.escape(name.lower())}\b", low):
             return tk
     for tk in watchlist:                         # then ticker code as a whole word
         if re.search(rf"\b{re.escape(tk)}\b", text):
