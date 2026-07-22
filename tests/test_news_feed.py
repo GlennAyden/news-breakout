@@ -92,3 +92,43 @@ def test_watchlist_passthrough_disabled_keeps_keyword_gate():
                         sender=lambda *a, **k: True, fetcher=fetcher)
     assert ids == []
     store.close()
+
+
+def test_outage_warning_sent_once_per_day_at_threshold():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    def fetcher(page_size, *, now, proxy="", retries=3, http_get=None, sleeper=None):
+        return []
+
+    for _ in range(2):
+        run_news_feed(_settings(), store, now=NOW, sender=sender, fetcher=fetcher,
+                      failure_streak=4)
+    warnings = [t for t in sent if "gagal 4 kali" in t]
+    assert len(warnings) == 1                      # once/day dedup
+    assert store.news_already_sent("news-outage-2026-07-18")
+    store.close()
+
+
+def test_outage_warning_below_threshold_and_callable_streak():
+    store = DedupStore(":memory:")
+    sent = []
+
+    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+        sent.append(text)
+        return True
+
+    def fetcher(page_size, *, now, proxy="", retries=3, http_get=None, sleeper=None):
+        return []
+
+    run_news_feed(_settings(), store, now=NOW, sender=sender, fetcher=fetcher,
+                  failure_streak=3)
+    assert sent == []                              # below default threshold 4
+    run_news_feed(_settings(), store, now=NOW, sender=sender, fetcher=fetcher,
+                  failure_streak=lambda: 5)        # callable form
+    assert any("gagal 5 kali" in t for t in sent)
+    store.close()

@@ -11,8 +11,18 @@ from news_breakout.alerts.telegram import send_message
 logger = logging.getLogger("news_breakout")
 
 
-def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_disclosures) -> list[str]:
+def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_disclosures,
+                  failure_streak=0) -> list[str]:
     disclosures = fetcher(settings.disclosure_page_size, now=now, proxy=settings.idx_proxy)
+    streak = failure_streak() if callable(failure_streak) else failure_streak
+    if streak >= settings.news_outage_max_failures:
+        key = f"news-outage-{now:%Y-%m-%d}"
+        if not store.news_already_sent(key):
+            warn = (f"⚠️ Feed keterbukaan IDX gagal {streak} kali beruntun — "
+                    "Cloudflare/proxy bermasalah?")
+            if sender(settings.telegram_bot_token, settings.telegram_news_chat_id,
+                      warn, dry_run=settings.dry_run):
+                store.news_mark_sent(key)   # one outage heads-up per day
     watchset = set(settings.watchlist) if settings.news_watchlist_passthrough else set()
     curated = [d for d in disclosures
                if is_price_sensitive(d, settings.curated_keywords) or d.ticker in watchset]
