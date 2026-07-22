@@ -72,7 +72,7 @@ def is_duplicate(tokens, seen_token_sets, threshold) -> bool   # max Jaccard >= 
 - `DedupStore` gains table `sent_news_titles(date_str TEXT, ticker TEXT, title_norm TEXT)` with `add_title(date_str, ticker, title_norm)` and `titles_for_day(date_str, ticker) -> list[str]` (title_norm = space-joined sorted tokens; parsed back to sets on read).
 - **Comparison is scoped per ticker** (empty-ticker corp-action items form their own group): otherwise near-identical headline templates about different issuers ("Laba ANTM naik 20%" vs "Laba TINS naik 20%") would false-positive at Jaccard 0.6.
 - In `run_portal_feed`, before sending each item: compute tokens; compare against (a) same-ticker titles already sent today from the store, (b) same-ticker titles sent earlier in this run. If duplicate → `news_mark_sent(url)` **without** sending (so it never resurfaces), log at info.
-- `portal.dup_title_threshold` (default 0.6; `0` disables the stage entirely).
+- `portal.dup_title_threshold` (default 0.55; `0` disables the stage entirely). *Revised from 0.6 post-implementation (user decision 2026-07-22): the canonical duplicate pair scores Jaccard 4/7 ≈ 0.571 because Indonesian morphology (bagikan/dibagikan) splits tokens, so 0.6 missed the exact case the feature targets.*
 - Stopword list: small built-in Indonesian function-word list (`yang`, `dan`, `di`, `ke`, `dari`, `untuk`, `pada`, `dengan`, `ini`, `itu`, …) — constant in `portal_dedup.py`, not config.
 
 ### 3.5 Emiten matching (`news/portal.py`, `config.py`, `scripts/build_name_map.py` NEW)
@@ -127,7 +127,7 @@ news:
   dedup_retention_days: 90          # prune sent_news / sent_news_titles rows older than this
 
 portal:
-  dup_title_threshold: 0.6          # near-dup Jaccard threshold (0 disables)
+  dup_title_threshold: 0.55         # near-dup Jaccard threshold (0 disables); revised from 0.6, see §3.4
   fetch_workers: 4                  # parallel article-extraction workers
   proxy: ""                         # global portal proxy (per-source `proxy:` overrides)
   name_map_file: config/name_map.yaml  # optional; inline name_map overrides file entries

@@ -319,7 +319,7 @@ def test_new_keys_default_and_offhours_falls_back_to_legacy_interval(tmp_path, m
     assert s.poll_interval_offhours_minutes == 60   # falls back to news_poll_interval_minutes
     assert s.news_watchlist_passthrough is True
     assert s.news_dedup_retention_days == 90
-    assert s.portal_dup_title_threshold == 0.6
+    assert s.portal_dup_title_threshold == 0.55
     assert s.portal_fetch_workers == 4
     assert s.portal_proxy == ""
 

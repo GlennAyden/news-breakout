@@ -65,7 +65,7 @@ class Settings(BaseModel):
     poll_interval_offhours_minutes: int = 60
     news_watchlist_passthrough: bool = True
     news_dedup_retention_days: int = 90
-    portal_dup_title_threshold: float = 0.6
+    portal_dup_title_threshold: float = 0.55
     portal_fetch_workers: int = 4
     portal_proxy: str = ""
     portal_name_map_file: str = "config/name_map.yaml"
@@ -190,7 +190,7 @@ def load_settings(
             "poll_interval_offhours_minutes", news["news_poll_interval_minutes"]),
         news_watchlist_passthrough=news.get("watchlist_passthrough", True),
         news_dedup_retention_days=news.get("dedup_retention_days", 90),
-        portal_dup_title_threshold=portal.get("dup_title_threshold", 0.6),
+        portal_dup_title_threshold=portal.get("dup_title_threshold", 0.55),
         portal_fetch_workers=portal.get("fetch_workers", 4),
         portal_proxy=portal.get("proxy", ""),
         supabase_url=_normalize_supabase_url(os.environ.get("SUPABASE_URL", "")),
