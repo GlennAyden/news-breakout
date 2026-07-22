@@ -20,6 +20,15 @@ class DedupStore:
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS sent_news (disclosure_id TEXT PRIMARY KEY)"
         )
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sent_news_titles (
+                date_str TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                title_norm TEXT NOT NULL
+            )
+            """
+        )
         self._conn.commit()
 
     def already_sent(
@@ -52,6 +61,19 @@ class DedupStore:
             "INSERT OR IGNORE INTO sent_news VALUES (?)", (disclosure_id,)
         )
         self._conn.commit()
+
+    def add_title(self, date_str: str, ticker: str, title_norm: str) -> None:
+        self._conn.execute(
+            "INSERT INTO sent_news_titles VALUES (?, ?, ?)", (date_str, ticker, title_norm)
+        )
+        self._conn.commit()
+
+    def titles_for_day(self, date_str: str, ticker: str) -> list[str]:
+        cur = self._conn.execute(
+            "SELECT title_norm FROM sent_news_titles WHERE date_str=? AND ticker=?",
+            (date_str, ticker),
+        )
+        return [r[0] for r in cur.fetchall()]
 
     def close(self) -> None:
         self._conn.close()
