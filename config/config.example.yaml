@@ -243,6 +243,11 @@ portal:
     - {url: https://katadata.co.id/rss/finansial, parser: rss}
     - {url: https://emitentrust.com/category/stock-and-market/feed/, parser: rss}
     - {url: https://emitennews.com/category/emiten, parser: emitennews}
+    # 403 dari IP datacenter — aktifkan bila ada proxy residensial (isi `proxy:` per sumber
+    # atau `portal.proxy` global):
+    # - {url: https://www.kontan.co.id/rss, parser: rss}
+    # - {url: https://www.bisnis.com/index, parser: bisnis}
+    # - {url: https://investor.id/market, parser: investor}
   summary_sentences: 2    # extractive lead length (sentences)
   max_per_run: 20         # anti-flood cap: max NEW items sent per hourly run
   dup_title_threshold: 0.6  # near-dup Jaccard threshold across portals (0 disables)

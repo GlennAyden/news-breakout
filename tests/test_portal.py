@@ -92,7 +92,7 @@ def test_parse_rss_captures_stripped_description():
 
 def test_fetch_matches_company_in_description_not_title():
     # title alone has no watchlist mention; the company name is only in the body
-    def http_get(url):
+    def http_get(url, proxy=""):
         return RSS_DESC
 
     out = fetch_portal_news(["https://x.example/rss"], ["BRPT"], {"barito pacific": "BRPT"},
@@ -106,7 +106,8 @@ def test_run_portal_feed_passes_watchlist_plus_universe_to_fetcher():
     store = DedupStore(":memory:")
     captured = {}
 
-    def fetcher(sources, tickers, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, tickers, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         captured["tickers"] = list(tickers)
         return []
 
@@ -144,7 +145,7 @@ def test_name_match_requires_word_boundary():
 # ---- fetch_portal_news -------------------------------------------------------
 
 def test_fetch_portal_news_keeps_only_ticker_matches_and_skips_failing_source():
-    def http_get(url):
+    def http_get(url, proxy=""):
         if url == "https://bad.example/rss":
             raise RuntimeError("boom")
         return RSS_XML
@@ -163,7 +164,7 @@ def test_fetch_portal_news_keeps_only_ticker_matches_and_skips_failing_source():
 
 
 def test_fetch_portal_news_dict_source_defaults_to_rss_parser():
-    def http_get(url):
+    def http_get(url, proxy=""):
         return RSS_XML
 
     out = fetch_portal_news(
@@ -187,7 +188,7 @@ def test_fetch_portal_news_dict_source_dispatches_to_named_parser():
     </a>
     """
 
-    def http_get(url):
+    def http_get(url, proxy=""):
         assert url == "https://emitennews.com/category/emiten"
         return emiten_html
 
@@ -203,7 +204,7 @@ def test_fetch_portal_news_dict_source_dispatches_to_named_parser():
 
 
 def test_fetch_portal_news_skips_malformed_dict_source_without_url():
-    def http_get(url):
+    def http_get(url, proxy=""):
         return RSS_XML
 
     out = fetch_portal_news(
@@ -218,7 +219,7 @@ def test_fetch_portal_news_skips_malformed_dict_source_without_url():
 
 
 def test_fetch_portal_news_mixed_string_and_dict_sources():
-    def http_get(url):
+    def http_get(url, proxy=""):
         return RSS_XML
 
     out = fetch_portal_news(
@@ -228,6 +229,21 @@ def test_fetch_portal_news_mixed_string_and_dict_sources():
     )
     # both sources parsed the same RSS_XML -> 2 matches each = 4 total
     assert len(out) == 4
+
+
+def test_per_source_proxy_overrides_global():
+    calls = []
+
+    def http_get(url, proxy):
+        calls.append((url, proxy))
+        return "<rss></rss>"
+
+    sources = [{"url": "https://a.com/rss", "proxy": "http://p1"},
+               {"url": "https://b.com/rss"}]
+    fetch_portal_news(sources, [], {}, now=NOW, http_get=http_get,
+                      global_proxy="http://global")
+    assert calls == [("https://a.com/rss", "http://p1"),
+                     ("https://b.com/rss", "http://global")]
 
 
 # ---- format_portal ------------------------------------------------------------
@@ -302,7 +318,8 @@ def test_run_portal_feed_disabled_returns_empty_and_sends_nothing():
         sent.append((chat_id, text))
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         raise AssertionError("fetcher should not be called when portal disabled")
 
     result = run_portal_feed(_settings(portal_enabled=False), store, now=NOW,
@@ -320,7 +337,8 @@ def test_run_portal_feed_enabled_sends_and_dedups_on_second_run():
         sent.append((chat_id, text))
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         return [
             PortalNews("BRPT", "Barito Pacific catat kinerja positif", NOW,
                        "https://www.kontan.co.id/news/barito-pacific-1", "kontan.co.id"),
@@ -348,7 +366,8 @@ def test_run_portal_feed_skips_enrichment_for_already_sent_items():
     store.news_mark_sent("https://x/1")
     fetched = []
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         return [
             PortalNews("A", "judul lama", NOW, "https://x/1", "s"),
             PortalNews("B", "judul baru", NOW, "https://x/2", "s"),
@@ -380,7 +399,8 @@ def test_run_portal_feed_enriches_lead_and_sentiment_and_sends_html():
         calls.append({"text": text, "kwargs": kwargs})
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         return [PortalNews("ANTM", "Antam tebar dividen", NOW, "https://x/1", "cnbc")]
 
     settings = _settings(portal_enabled=True, portal_sources=["x"])
@@ -405,7 +425,8 @@ def test_run_portal_feed_extractor_failure_falls_back_to_rss_summary():
         sent.append(text)
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         return [PortalNews("ANTM", "judul", NOW, "https://x/1", "cnbc",
                            summary="Ringkasan dari deskripsi RSS.")]
 
@@ -428,7 +449,8 @@ def test_run_portal_feed_classifier_failure_still_sends_without_chip():
         sent.append(text)
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         return [PortalNews("ANTM", "judul", NOW, "https://x/1", "cnbc")]
 
     def boom(texts, **k):
@@ -450,7 +472,8 @@ def test_run_portal_feed_survives_non_list_classifier_return():
         sent.append(text)
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         return [PortalNews("ANTM", "judul", NOW, "https://x/1", "s")]
 
     def classifier(texts, **k):
@@ -472,7 +495,8 @@ def test_run_portal_feed_caps_sends_per_run():
         sent.append(text)
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         return [PortalNews(f"T{i}", f"judul {i}", NOW, f"https://x/{i}", "cnbc") for i in range(5)]
 
     settings = _settings(portal_enabled=True, portal_sources=["x"], portal_max_per_run=2)
@@ -490,7 +514,8 @@ def test_run_portal_feed_summary_does_not_repeat_headline():
         sent.append(text)
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         return [PortalNews("ANTM", "Antam Tebar Dividen", NOW, "https://x/1", "s")]
 
     def extractor(url):  # trafilatura emits the headline as the body's first line
@@ -513,7 +538,8 @@ def test_run_portal_feed_orders_corp_then_strong_sentiment_then_rest():
         sent.append(text)
         return True
 
-    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None):
+    def fetcher(sources, watchlist, name_map, *, now, http_get=None, corp_keywords=None,
+                global_proxy=""):
         return [
             PortalNews("AAA", "biasa netral", NOW, "https://x/1", "s", corp_action=False),
             PortalNews("BBB", "aksi korporasi", NOW, "https://x/2", "s", corp_action=True),

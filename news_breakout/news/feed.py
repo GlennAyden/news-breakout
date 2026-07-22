@@ -51,7 +51,8 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
 
     if extractor is None:
         def extractor(url):
-            return fetch_article_text(url, http_get=_default_http_get)
+            return fetch_article_text(
+                url, http_get=lambda u: _default_http_get(u, settings.portal_proxy))
     if classifier is None:
         classifier = _classify
 
@@ -59,7 +60,7 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
     # so market news about any scanned liquid stock gets surfaced too
     tickers = list(dict.fromkeys(settings.watchlist + settings.universe_candidates))
     items = fetcher(settings.portal_sources, tickers, settings.portal_name_map, now=now,
-                    corp_keywords=settings.curated_keywords)
+                    corp_keywords=settings.curated_keywords, global_proxy=settings.portal_proxy)
 
     # drop already-sent items before the expensive per-item fetch/classify stages below
     items = [it for it in items if not store.news_already_sent(it.url)]

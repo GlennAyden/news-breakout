@@ -100,13 +100,16 @@ def has_corp_action(text: str, keywords: list[str]) -> bool:
     return keyword_match(text, keywords)
 
 
-def _default_http_get(url: str) -> str:
+def _default_http_get(url: str, proxy: str = "") -> str:
     from curl_cffi import requests as creq
-    return creq.Session(impersonate="chrome120").get(url, timeout=30).text
+    kwargs = {"impersonate": "chrome120"}
+    if proxy:
+        kwargs["proxies"] = {"http": proxy, "https": proxy}
+    return creq.Session(**kwargs).get(url, timeout=30).text
 
 
 def fetch_portal_news(sources, watchlist, name_map, *, now, http_get=None,
-                      corp_keywords=None) -> list[PortalNews]:
+                      corp_keywords=None, global_proxy: str = "") -> list[PortalNews]:
     # Local import avoids a circular import: portal_html.py imports PortalNews
     # from this module, so this module cannot import portal_html at load time.
     from news_breakout.news.portal_html import parse_bisnis, parse_emitennews, parse_investor
@@ -126,8 +129,9 @@ def fetch_portal_news(sources, watchlist, name_map, *, now, http_get=None,
         if not url:
             continue
         parser_name = "rss" if isinstance(src, str) else src.get("parser", "rss")
+        proxy = (src.get("proxy", "") if isinstance(src, dict) else "") or global_proxy
         try:
-            text = http_get(url)
+            text = http_get(url, proxy)
         except Exception:  # noqa: BLE001
             logger.warning("portal fetch failed: %s", url)
             continue
