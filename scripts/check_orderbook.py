@@ -91,12 +91,67 @@ def run_live(symbol: str, now: datetime) -> None:
         print(format_orderbook_alert(snap, res, None, vol, now=now))
 
 
+def run_scan(symbols: list[str], now: datetime) -> None:
+    """Exercise the full run_orderbook_scan orchestration against LIVE Stockbit
+    data in dry-run: synthetic daily bars that pass the rule-2 volume filter feed
+    the real fetcher -> classify -> format -> (dry-run) send, for each symbol."""
+    import logging
+    import os
+
+    import pandas as pd
+
+    from news_breakout.config import Settings, _load_env_file
+    from news_breakout.alerts.dedup import DedupStore
+    from news_breakout.orderbook.auth import StockbitAuth
+    from news_breakout.orderbook.scan import run_orderbook_scan
+    from news_breakout.orderbook.state import PhaseStore
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    _load_env_file(".env")
+    access = os.environ.get("STOCKBIT_ACCESS_TOKEN", "").strip()
+    refresh = os.environ.get("STOCKBIT_REFRESH_TOKEN", "").strip()
+    if not access and not refresh:
+        print("STOCKBIT_ACCESS_TOKEN / STOCKBIT_REFRESH_TOKEN belum di-set di .env.")
+        return
+
+    at10 = now.replace(hour=10, minute=0, second=0, microsecond=0)  # inside [open+30, close]
+    prev = (at10 - pd.Timedelta(days=3)).strftime("%Y-%m-%d")
+    today = at10.strftime("%Y-%m-%d")
+    daily = {
+        s: pd.DataFrame({"Close": [100, 100], "Volume": [1000, 800]},
+                        index=pd.to_datetime([prev, today]))  # ratio 0.8 -> passes
+        for s in symbols
+    }
+
+    settings = Settings(
+        watchlist=symbols, donchian_lookback=20, rvol_threshold=2.5, rvol_window=20,
+        history_days=120, range_lookback=30, range_max_width_pct=0.15, intraday_period_days=60,
+        telegram_bot_token="dummy", telegram_breakout_chat_id="-1", dry_run=True,
+        market_open="09:00", market_close="16:00", scan_interval_minutes=30,
+        weekend_scan_day="sat", holidays=[], universe_candidates=[], min_price=50,
+        min_daily_value=1e9, telegram_news_chat_id="-2", curated_keywords=[],
+        disclosure_page_size=50, news_poll_interval_minutes=60, idx_proxy="",
+        orderbook_enabled=True, orderbook_max_symbols_per_scan=15,
+        orderbook_request_delay_seconds=0.5, orderbook_window_after_open_minutes=30,
+    )
+    auth = StockbitAuth(refresh, access_token=access)
+    store, phase_store = DedupStore(":memory:"), PhaseStore(":memory:")
+    print(f"Running full orderbook scan (dry-run) over {symbols} at {today} 10:00 WIB ...\n")
+    alerted = run_orderbook_scan(settings, daily, store, phase_store, now=at10,
+                                 auth=auth, is_open=lambda: True)
+    phase_store.close()
+    store.close()
+    print(f"\nReady-Markup alerts this cycle: {alerted or 'none'}")
+
+
 def main() -> None:
     _fix_console()
     now = datetime.now(WIB)
     args = sys.argv[1:]
     if args and args[0] == "--live" and len(args) >= 2:
         run_live(args[1], now)
+    elif args and args[0] == "--scan" and len(args) >= 2:
+        run_scan([s.strip().upper() for s in args[1].split(",") if s.strip()], now)
     else:
         run_demo(now)
 

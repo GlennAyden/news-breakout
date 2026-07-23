@@ -141,6 +141,42 @@ timestamp WIB.
 - `--demo` — runs classify + formatter with no credentials (proves the signal pipeline).
 - `--live SYMBOL` — fetches a real orderbook (needs `STOCKBIT_ACCESS_TOKEN` or `STOCKBIT_REFRESH_TOKEN`), classifies, prints the alert. This is the end-to-end confirmation and surfaces any seam-2 error without exposing token values.
 
+## Verification performed (2026-07-23)
+
+- **Functional (local):** full suite 347 passing; `--live BBCA` → HTTP 200,
+  parsed, phase=ACCUMULATION; `--scan BBCA,TLKM,ANTM,BBRI,ASII` (full
+  `run_orderbook_scan` orchestration, dry-run) → only TLKM = READY_MARKUP
+  (bid 252,428 / offer 265,059, ratio 0.95) alerted. Live data confirmed moving.
+- **Stockbit reachability from VPS (seam #3):** ✅ from `ubuntu@43.156.128.91`,
+  `curl` to `exodus.stockbit.com` orderbook + session endpoints returned **HTTP 401**
+  (0.07 s) — reachable, NOT IP-blocked (unlike Yahoo/IDX-price from this datacenter IP).
+  **No GitHub-Actions relay needed** — the VPS can hit Stockbit directly with a token.
+- **Wiring:** `serve.py::scan_job` calls `run.run_scan`, which calls
+  `_maybe_run_orderbook` — so the feature runs on every scheduled 30-min scan
+  once enabled; no `serve.py` change.
+
+## Deploy to VPS (runbook)
+
+Follows the project's standard flow (VPS runs `main`; `config/config.yaml` is the
+git-ignored live copy — never re-`cp` from example or `dry_run` resets to true).
+
+1. Push branch, merge to `main` (PR or ff-merge), so `origin/main` has this work.
+2. On VPS (short, spaced SSH commands — fail2ban): `cd ~/news-breakout && git fetch && git merge --ff-only origin/main`.
+3. Enable in the VPS `config/config.yaml` — append the `orderbook:` block with
+   `enabled: true` (absent block = disabled by default). Do NOT re-cp the example.
+4. **User** adds to VPS `.env` (assistant never writes VPS secrets):
+   `STOCKBIT_REFRESH_TOKEN=...` (for unattended) and/or `STOCKBIT_ACCESS_TOKEN=...`
+   (quick start, ~24 h), optional `TELEGRAM_ORDERBOOK_CHAT_ID=...`.
+5. `sudo -n systemctl restart news-breakout.service` (passwordless on the box).
+6. Verify: `journalctl -u news-breakout --since "-2min"` (scheduler clean) and,
+   with a token in place, `PYTHONPATH=. .venv/bin/python scripts/check_orderbook.py --live BBCA` → HTTP 200.
+
+**Caveat before relying on unattended runs:** the refresh endpoint (seam #2) is
+still a best-guess. With only `STOCKBIT_ACCESS_TOKEN` the feature works until the
+token's `exp` (~24 h) then stops; confirm the refresh flow (set
+`STOCKBIT_REFRESH_TOKEN`, watch for a refresh error in the journal) before
+depending on 24/7 operation.
+
 ## Out of scope (YAGNI)
 
 Websocket/streaming, full-universe *orderbook* scanning (volume filter gates it),
