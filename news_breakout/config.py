@@ -59,6 +59,27 @@ class Settings(BaseModel):
     daily_shift_min_price: float = 50
     daily_shift_max_alerts: int = 15
     daily_shift_history_days: int = 90
+    news_booster_page_size: int = 200
+    news_fetch_cache_ttl_minutes: int = 10
+    news_outage_max_failures: int = 4
+    poll_interval_market_minutes: int = 15
+    poll_interval_offhours_minutes: int = 60
+    news_watchlist_passthrough: bool = True
+    news_dedup_retention_days: int = 90
+    portal_dup_title_threshold: float = 0.55
+    portal_fetch_workers: int = 4
+    portal_proxy: str = ""
+    portal_name_map_file: str = "config/name_map.yaml"
+    portal_drop_categories: list[str] = ["tata_kelola", "pasar_opini"]
+    orderbook_enabled: bool = False
+    orderbook_max_symbols_per_scan: int = 15
+    orderbook_request_delay_seconds: float = 0.7
+    orderbook_window_after_open_minutes: int = 30
+    orderbook_early_volume_min_ratio: float = 0.5
+    orderbook_phase_rm_balance_min_ratio: float = 0.85
+    stockbit_refresh_token: str = ""
+    stockbit_access_token: str = ""
+    telegram_orderbook_chat_id: str = ""
 
 
 def _load_env_file(env_path: str) -> None:
@@ -72,6 +93,19 @@ def _load_env_file(env_path: str) -> None:
             continue
         key, _, value = line.partition("=")
         os.environ.setdefault(key.strip(), value.strip())
+
+
+def _load_name_map_file(path: str) -> dict[str, str]:
+    """Optional YAML file of lowercase company name -> ticker; missing/null -> {}."""
+    if not path:
+        return {}
+    p = Path(path)
+    if not p.exists():
+        return {}
+    data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k).strip().lower(): str(v).strip().upper() for k, v in data.items()}
 
 
 def _normalize_supabase_url(raw: str) -> str:
@@ -107,6 +141,9 @@ def load_settings(
     sentiment = raw.get("sentiment", {})
     elliott = raw.get("elliott", {})
     daily_shift = raw.get("daily_shift", {})
+    orderbook = raw.get("orderbook", {})
+    ob_volume = orderbook.get("early_volume", {})
+    ob_phase = orderbook.get("phase", {})
     return Settings(
         watchlist=raw["watchlist"],
         donchian_lookback=signals["donchian_lookback"],
@@ -137,7 +174,11 @@ def load_settings(
         news_priority_boost=news.get("priority_boost", 3.0),
         portal_enabled=portal.get("enabled", False),
         portal_sources=portal.get("sources", []),
-        portal_name_map=portal.get("name_map", {}),
+        portal_name_map={
+            **_load_name_map_file(portal.get("name_map_file", "config/name_map.yaml") or ""),
+            **portal.get("name_map", {}),
+        },
+        portal_name_map_file=portal.get("name_map_file", "config/name_map.yaml") or "",
         portal_summary_sentences=portal.get("summary_sentences", 2),
         portal_max_per_run=portal.get("max_per_run", 20),
         sentiment_enabled=sentiment.get("enabled", True),
@@ -156,6 +197,27 @@ def load_settings(
         daily_shift_min_price=daily_shift.get("min_price", 50),
         daily_shift_max_alerts=daily_shift.get("max_alerts", 15),
         daily_shift_history_days=daily_shift.get("history_days", 90),
+        news_booster_page_size=news.get("booster_page_size", 200),
+        news_fetch_cache_ttl_minutes=news.get("fetch_cache_ttl_minutes", 10),
+        news_outage_max_failures=news.get("news_outage_max_failures", 4),
+        poll_interval_market_minutes=news.get("poll_interval_market_minutes", 15),
+        poll_interval_offhours_minutes=news.get(
+            "poll_interval_offhours_minutes", news["news_poll_interval_minutes"]),
+        news_watchlist_passthrough=news.get("watchlist_passthrough", True),
+        news_dedup_retention_days=news.get("dedup_retention_days", 90),
+        portal_dup_title_threshold=portal.get("dup_title_threshold", 0.55),
+        portal_fetch_workers=portal.get("fetch_workers", 4),
+        portal_proxy=portal.get("proxy", ""),
+        portal_drop_categories=portal.get("drop_categories", ["tata_kelola", "pasar_opini"]),
+        orderbook_enabled=orderbook.get("enabled", False),
+        orderbook_max_symbols_per_scan=orderbook.get("max_symbols_per_scan", 15),
+        orderbook_request_delay_seconds=orderbook.get("request_delay_seconds", 0.7),
+        orderbook_window_after_open_minutes=orderbook.get("window_after_open_minutes", 30),
+        orderbook_early_volume_min_ratio=ob_volume.get("min_ratio_prev_day", 0.5),
+        orderbook_phase_rm_balance_min_ratio=ob_phase.get("rm_balance_min_ratio", 0.85),
+        stockbit_refresh_token=os.environ.get("STOCKBIT_REFRESH_TOKEN", "").strip(),
+        stockbit_access_token=os.environ.get("STOCKBIT_ACCESS_TOKEN", "").strip(),
+        telegram_orderbook_chat_id=os.environ.get("TELEGRAM_ORDERBOOK_CHAT_ID", "").strip(),
         supabase_url=_normalize_supabase_url(os.environ.get("SUPABASE_URL", "")),
         supabase_key=os.environ.get("SUPABASE_KEY", "").strip(),
         price_staleness_max_minutes=raw.get("monitoring", {}).get("price_staleness_max_minutes", 90),

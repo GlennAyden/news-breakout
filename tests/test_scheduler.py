@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from news_breakout.config import Settings
-from news_breakout.scheduling.scheduler import should_scan_now, build_scheduler
+from news_breakout.scheduling.scheduler import should_scan_now, should_poll_news, build_scheduler
 
 WIB = ZoneInfo("Asia/Jakarta")
 
@@ -44,3 +44,26 @@ def test_build_scheduler_registers_daily_jobs_when_enabled():
                             daily_detect_job=lambda: None, daily_reminder_job=lambda: None)
     assert {j.id for j in sched.get_jobs()} == {
         "scan", "weekend", "news", "daily_detect", "daily_reminder"}
+
+
+T0 = datetime(2026, 7, 22, 20, 0, tzinfo=ZoneInfo("Asia/Jakarta"))   # evening, off-hours
+
+
+def test_poll_always_during_market_hours():
+    assert should_poll_news(T0, T0 - timedelta(minutes=1),
+                            market_open=True, offhours_minutes=60) is True
+
+
+def test_poll_offhours_gated_by_elapsed_time():
+    assert should_poll_news(T0, None, market_open=False, offhours_minutes=60) is True
+    assert should_poll_news(T0, T0 - timedelta(minutes=59),
+                            market_open=False, offhours_minutes=60) is False
+    assert should_poll_news(T0, T0 - timedelta(minutes=60),
+                            market_open=False, offhours_minutes=60) is True
+
+
+def test_news_job_scheduled_at_market_cadence():
+    sched = build_scheduler(_settings(), scan_job=lambda: None,
+                            weekend_job=lambda: None, news_job=lambda: None)
+    news = next(j for j in sched.get_jobs() if j.id == "news")
+    assert news.trigger.interval == timedelta(minutes=15)

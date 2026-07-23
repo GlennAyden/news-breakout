@@ -20,7 +20,20 @@ class DedupStore:
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS sent_news (disclosure_id TEXT PRIMARY KEY)"
         )
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sent_news_titles (
+                date_str TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                title_norm TEXT NOT NULL
+            )
+            """
+        )
         self._conn.commit()
+        # Additive migration for pre-existing VPS databases
+        cols = [r[1] for r in self._conn.execute("PRAGMA table_info(sent_news)")]
+        if "sent_at" not in cols:
+            self._conn.execute("ALTER TABLE sent_news ADD COLUMN sent_at TEXT")
 
     def already_sent(
         self, ticker: str, signal_type: str, timeframe: str, date_str: str
@@ -47,10 +60,34 @@ class DedupStore:
         )
         return cur.fetchone() is not None
 
-    def news_mark_sent(self, disclosure_id: str) -> None:
+    def news_mark_sent(self, disclosure_id: str, *, sent_at: str | None = None) -> None:
         self._conn.execute(
-            "INSERT OR IGNORE INTO sent_news VALUES (?)", (disclosure_id,)
+            "INSERT OR IGNORE INTO sent_news (disclosure_id, sent_at) VALUES (?, ?)",
+            (disclosure_id, sent_at),
         )
+        self._conn.commit()
+
+    def add_title(self, date_str: str, ticker: str, title_norm: str) -> None:
+        self._conn.execute(
+            "INSERT INTO sent_news_titles VALUES (?, ?, ?)", (date_str, ticker, title_norm)
+        )
+        self._conn.commit()
+
+    def titles_for_day(self, date_str: str, ticker: str) -> list[str]:
+        cur = self._conn.execute(
+            "SELECT title_norm FROM sent_news_titles WHERE date_str=? AND ticker=?",
+            (date_str, ticker),
+        )
+        return [r[0] for r in cur.fetchall()]
+
+    def prune_news(self, older_than_days: int, *, now) -> None:
+        from datetime import timedelta
+
+        cutoff = (now - timedelta(days=older_than_days)).strftime("%Y-%m-%d")
+        self._conn.execute(
+            "DELETE FROM sent_news WHERE sent_at IS NOT NULL AND sent_at < ?", (cutoff,)
+        )
+        self._conn.execute("DELETE FROM sent_news_titles WHERE date_str < ?", (cutoff,))
         self._conn.commit()
 
     def close(self) -> None:

@@ -230,6 +230,13 @@ news:
   news_poll_interval_minutes: 60
   booster_window_hours: 48
   priority_boost: 3.0
+  booster_page_size: 200            # canonical IDX fetch size (shared cache + booster window)
+  fetch_cache_ttl_minutes: 10       # disclosure cache TTL (news job + scan share one fetch)
+  news_outage_max_failures: 4       # consecutive fetch failures before a once/day Telegram warning
+  poll_interval_market_minutes: 15  # news poll cadence during market hours
+  poll_interval_offhours_minutes: 60  # cadence outside market hours
+  watchlist_passthrough: true       # watchlist tickers bypass the keyword gate
+  dedup_retention_days: 90          # prune sent-news bookkeeping older than this
 
 portal:
   enabled: true           # ticker-matched market news -> News channel
@@ -240,8 +247,18 @@ portal:
     - {url: https://katadata.co.id/rss/finansial, parser: rss}
     - {url: https://emitentrust.com/category/stock-and-market/feed/, parser: rss}
     - {url: https://emitennews.com/category/emiten, parser: emitennews}
+    # 403 dari IP datacenter — aktifkan bila ada proxy residensial (isi `proxy:` per sumber
+    # atau `portal.proxy` global):
+    # - {url: https://www.kontan.co.id/rss, parser: rss}
+    # - {url: https://www.bisnis.com/index, parser: bisnis}
+    # - {url: https://investor.id/market, parser: investor}
   summary_sentences: 2    # extractive lead length (sentences)
   max_per_run: 20         # anti-flood cap: max NEW items sent per hourly run
+  dup_title_threshold: 0.55  # near-dup Jaccard threshold across portals (0 disables); 0.6 misses morphology-variant headlines (bagikan/dibagikan)
+  fetch_workers: 4          # parallel article-extraction workers
+  proxy: ""                 # global portal proxy; per-source `proxy:` overrides
+  name_map_file: config/name_map.yaml  # optional generated map; inline name_map overrides it
+  drop_categories: [tata_kelola, pasar_opini]  # governance/market-recap noise filtered out; corp-action titles exempt
   name_map:               # lowercase company name -> ticker; extend/verify for your watchlist
     aneka tambang: ANTM
     antam: ANTM
@@ -295,6 +312,20 @@ daily_shift:
   min_price: 50
   max_alerts: 15                      # top-N individual alerts at 16:30 WIB
   history_days: 90                    # daily bars fetched for the broad tier
+
+orderbook:
+  # "Ready Markup" playbook: alerts when total BID lot ~= total OFFER lot
+  # (bid/offer setara) for a stock whose today-volume is already >= half of
+  # yesterday's, ~30 min after open. Data pulled from Stockbit's internal API
+  # (requires STOCKBIT_REFRESH_TOKEN). Disabled by default.
+  enabled: false
+  max_symbols_per_scan: 15            # cap Stockbit orderbook calls per cycle
+  request_delay_seconds: 0.7          # throttle between orderbook calls
+  window_after_open_minutes: 30       # rule-2 timing gate: skip earlier in the session
+  early_volume:
+    min_ratio_prev_day: 0.5           # today cumulative vol >= 0.5 * prev-day total
+  phase:
+    rm_balance_min_ratio: 0.85        # Ready Markup if min(bid,offer)/max(bid,offer) >= this
 
 # Price data (M6): the VPS reads OHLCV from Supabase, filled by a GitHub Actions
 # fetcher. Set these in the environment / VPS .env (never commit real values):
