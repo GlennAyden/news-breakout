@@ -258,6 +258,7 @@ portal:
   fetch_workers: 4          # parallel article-extraction workers
   proxy: ""                 # global portal proxy; per-source `proxy:` overrides
   name_map_file: config/name_map.yaml  # optional generated map; inline name_map overrides it
+  drop_categories: [tata_kelola, pasar_opini]  # governance/market-recap noise filtered out; corp-action titles exempt
   name_map:               # lowercase company name -> ticker; extend/verify for your watchlist
     aneka tambang: ANTM
     antam: ANTM

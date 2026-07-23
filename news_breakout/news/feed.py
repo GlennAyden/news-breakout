@@ -81,6 +81,12 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
     items = fetcher(settings.portal_sources, tickers, settings.portal_name_map, now=now,
                     corp_keywords=settings.curated_keywords, global_proxy=settings.portal_proxy)
 
+    # drop governance/market-opinion noise first (cheapest gate); corp-action
+    # items are exempt so "RUPSLB restui buyback" style headlines still flow
+    from news_breakout.news.category import drop_category
+    items = [it for it in items
+             if it.corp_action or not drop_category(it.title, settings.portal_drop_categories)]
+
     # drop already-sent items before the expensive per-item fetch/classify stages below
     items = [it for it in items if not store.news_already_sent(it.url)]
 
