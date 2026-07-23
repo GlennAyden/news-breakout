@@ -27,8 +27,9 @@ def test_confident_wave3_context_renders_block():
     ctx = WaveContext(position="wave_3_start", confidence=0.62, invalidation=2950.0,
                       fib_targets={"1.618": 3480.0}, note="kemungkinan awal Wave-3")
     msg = format_ticker_alert(_alert(ctx))
-    assert "🌊 Elliott" in msg and "Wave-3" in msg
-    assert "2.950" in msg and "3.480" in msg
+    assert "🌊 Elliott" in msg and "Wave-3" in msg and "0.62" in msg
+    # invalidation lives in the Stop line; fib targets dropped (no backtest edge)
+    assert "2.950" not in msg and "3.480" not in msg and "📐" not in msg
 
 
 def test_low_confidence_context_hidden():

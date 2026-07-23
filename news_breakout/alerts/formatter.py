@@ -48,68 +48,89 @@ def _primary_signal(signals: list[BreakoutSignal]) -> BreakoutSignal:
     )
 
 
-def _trade_plan_line(alert: TickerAlert) -> str:
+def _strength(score: float) -> str:
+    """Translate the quality score into an at-a-glance tier (send floor is 5.5)."""
+    if score >= 9.0:
+        return "⭐⭐⭐"
+    if score >= 7.0:
+        return "⭐⭐"
+    return "⭐"
+
+
+def _tf_header(signals: list[BreakoutSignal]) -> str:
+    tfs = sorted({s.timeframe for s in signals}, key=lambda tf: -TF_WEIGHT.get(tf, 0.0))
+    return "+".join(tfs)
+
+
+def _action_block(alert: TickerAlert) -> list[str]:
+    """The decision lines: buy / stop / manage. Same tiering as before
+    (ATR-trailing > EW fixed-2R > broken-level fallback > entry-only)."""
     primary = _primary_signal(alert.signals)
     entry = primary.price
     stop = getattr(alert, "structure_stop", None)
     atr = getattr(alert, "atr", None)
-    if stop is not None and stop < entry and atr is not None and atr > 0:
-        p = trail_plan(entry, stop, atr)
-        return (
-            f"📍 Rencana: Entry ~{_rupiah(entry)} · Stop (EW) <{_rupiah(stop)} "
-            f"· Risk {p['risk_pct']:.1f}% · Trail 2.5×ATR ~{_rupiah(p['trail_dist'])} "
-            f"stlh +1R (~{_rupiah(p['activate'])})"
-        )
+    lines = [f"💰 Beli  : ~{_rupiah(entry)}"]
     if stop is not None and stop < entry:
         risk = (entry - stop) / entry * 100
-        target = entry + 2 * (entry - stop)
-        return (
-            f"📍 Rencana: Entry ~{_rupiah(entry)} · Invalidasi (EW) <{_rupiah(stop)} "
-            f"· Risk {risk:.1f}% · Target 2R ~{_rupiah(target)}"
-        )
-    # fallback: the original broken-level plan (unchanged / byte-identical)
+        lines.append(f"🛑 Stop  : {_rupiah(stop)} (EW, risiko {risk:.1f}%)")
+        if atr is not None and atr > 0:
+            p = trail_plan(entry, stop, atr)
+            lines.append(
+                f"🎯 Kelola: capai +1R (~{_rupiah(p['activate'])}) "
+                f"→ trailing stop ~{_rupiah(p['trail_dist'])} di bawah harga"
+            )
+        else:
+            target = entry + 2 * (entry - stop)
+            lines.append(f"🎯 Target: 2R ~{_rupiah(target)}")
+        return lines
     level = primary.level
     if level >= entry:
-        return f"📍 Entry ~{_rupiah(entry)}"
+        return lines  # degenerate level: entry only, no stop/target math
     risk = (entry - level) / entry * 100
     target = entry + 2 * (entry - level)
+    lines.append(f"🛑 Stop  : <{_rupiah(level)} (risiko {risk:.1f}%)")
+    lines.append(f"🎯 Target: 2R ~{_rupiah(target)}")
+    return lines
+
+
+def _signal_line(alert: TickerAlert) -> str:
+    primary = _primary_signal(alert.signals)
+    arrow = "🟢" if primary.rvol >= 2.0 else "🟡"
+    ext = f" (+{alert.ext_pct:.1f}%)" if alert.ext_pct > 0 else ""
     return (
-        f"📍 Rencana: Entry ~{_rupiah(entry)} · Invalidasi <{_rupiah(level)} "
-        f"· Risk {risk:.1f}% · Target 2R ~{_rupiah(target)}"
+        f"Sinyal : tembus resistance {_rupiah(primary.level)}{ext} "
+        f"· RVOL {primary.rvol:.1f}× {arrow}"
     )
 
 
-def _score_line(alert: TickerAlert) -> str:
-    parts = [f"🏅 Skor {alert.quality_score:.1f}"]
+def _trend_line(alert: TickerAlert) -> str | None:
+    parts = []
     if alert.above_sma50 is True:
-        parts.append("tren↑")
+        parts.append("di atas SMA50 ↑")
     elif alert.above_sma50 is False:
-        parts.append("tren↓")
-    if alert.ext_pct > 0:
-        parts.append(f"+{alert.ext_pct:.1f}% dari level")
-    return " · ".join(parts)
+        parts.append("di bawah SMA50 ↓")
+    if getattr(alert, "long_channel", None) is True:
+        parts.append("🏔️ high 3 bulan baru")
+    return ("Tren   : " + " · ".join(parts)) if parts else None
 
 
 def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None, *,
                         min_conf: float = 0.45, show_ambiguous: bool = False) -> str:
-    price = alert.signals[0].price
     marker = "🔥" if catalyst is not None else "🚨"
     lines = [
-        f"{marker} BREAKOUT — {alert.ticker}  ⭐{alert.priority:.0f}",
+        f"{marker} BREAKOUT — {alert.ticker} · {_tf_header(alert.signals)} "
+        f"· {_strength(alert.quality_score)} skor {alert.quality_score:.1f}",
         "━━━━━━━━━━━━━━━━━━━",
-        f"Harga : {_rupiah(price)}",
+        *_action_block(alert),
+        "━━━━━━━━━━━━━━━━━━━",
+        _signal_line(alert),
     ]
-    for s in alert.signals:
-        arrow = "🟢" if s.rvol >= 2.0 else "🟡"
-        label = _SIGNAL_LABEL.get(s.signal_type, s.signal_type)
-        lines.append(
-            f"• TF {s.timeframe}: {label} · level {_rupiah(s.level)} · RVOL {s.rvol:.1f}× {arrow}"
-        )
-    lines.append(_trade_plan_line(alert))
-    lines.append(_score_line(alert))
+    trend = _trend_line(alert)
+    if trend is not None:
+        lines.append(trend)
     for ln in elliott_block(
         getattr(alert, "wave_context", None),
-        min_conf=min_conf, show_ambiguous=show_ambiguous, rupiah=_rupiah,
+        min_conf=min_conf, show_ambiguous=show_ambiguous,
     ):
         lines.append(ln)
     if catalyst is not None:

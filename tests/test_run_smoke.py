@@ -143,9 +143,10 @@ def test_scan_once_attaches_catalyst_and_boosts_priority():
     assert "🔥" in sent[0]
     assert "Katalis" in sent[0]
     assert "Rights Issue" in sent[0]
-    # _breakout_daily() triggers a resistance signal on 1D (base priority 3.0)
-    # + news_priority_boost default 3.0 = 6
-    assert "⭐6" in sent[0]
+    # _breakout_daily(): 1D priority 3.0 + ext 4.5%*0.3 ~ 1.4 + news boost 3.0 = skor 7.4
+    # (the boosted score is what the header shows now; ⭐⭐ tier = score >= 7)
+    assert "skor 7.4" in sent[0]
+    assert "⭐⭐" in sent[0]
     store.close()
 
 

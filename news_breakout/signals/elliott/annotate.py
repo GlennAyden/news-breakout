@@ -12,7 +12,10 @@ _LABEL = {
 }
 
 
-def elliott_block(ctx: "WaveContext | None", *, min_conf: float, show_ambiguous: bool, rupiah) -> list[str]:
+def elliott_block(ctx: "WaveContext | None", *, min_conf: float, show_ambiguous: bool) -> list[str]:
+    """Label + confidence only: the invalidation price already appears in the
+    trade-plan Stop line, and fib targets showed no edge in backtest — neither
+    is repeated here."""
     if ctx is None:
         return []
 
@@ -24,13 +27,7 @@ def elliott_block(ctx: "WaveContext | None", *, min_conf: float, show_ambiguous:
             lines = [f"🌊 Elliott: ambigu ({ctx.note or 'hitungan bertentangan'}) — pakai penilaianmu"]
     elif ctx.confidence >= min_conf:
         label = _LABEL.get(ctx.position, ctx.position)
-        head = f"🌊 Elliott: {label} (conf {ctx.confidence:.2f})"
-        if ctx.invalidation is not None:
-            head += f" · invalidasi <{rupiah(ctx.invalidation)}"
-        lines = [head]
-        if ctx.fib_targets:
-            parts = " · ".join(f"{k}×→{rupiah(v)}" for k, v in ctx.fib_targets.items())
-            lines.append(f"📐 Fib: target {parts}")
+        lines = [f"🌊 Elliott: {label} (conf {ctx.confidence:.2f})"]
 
     if getattr(ctx, "from_abc", False):
         lines.append("🌊 Konteks: breakout dari koreksi ABC — historis cenderung lebih lemah")

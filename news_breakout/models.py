@@ -33,6 +33,7 @@ class TickerAlert:
     quality_score: float = 0.0
     ext_pct: float = 0.0
     above_sma50: bool | None = None
+    long_channel: bool | None = None
     wave_context: "WaveContext | None" = None
     structure_stop: float | None = None
     atr: float | None = None
