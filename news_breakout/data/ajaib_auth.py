@@ -48,7 +48,11 @@ def _extract_tokens(body: dict, now: float) -> tuple[str, str | None, int]:
     )
     now = int(now)
     abs_exp = (access.get("expired_time") if isinstance(access, dict) else None) or data.get("expired_time")
-    ttl = data.get("expires_in") or body.get("expires_in")
+    ttl = (
+        (access.get("expires_in") if isinstance(access, dict) else None)
+        or data.get("expires_in")
+        or body.get("expires_in")
+    )
     if abs_exp is not None:
         abs_exp = int(abs_exp)
         expiry = abs_exp // 1000 if abs_exp > 10_000_000_000 else abs_exp

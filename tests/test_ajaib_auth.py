@@ -3,9 +3,9 @@ from news_breakout.data.ajaib_auth import AjaibAuth, _extract_tokens
 
 
 def test_extract_tokens_reads_access_refresh_and_ttl():
-    body = {"data": {"access": {"token": "AT", "expires_in": 3600}, "refresh_token": "RT2"}}
+    body = {"data": {"access": {"token": "AT", "expires_in": 1200}, "refresh_token": "RT2"}}
     at, rt, exp = _extract_tokens(body, now=1000)
-    assert at == "AT" and rt == "RT2" and exp == 1000 + 3600
+    assert at == "AT" and rt == "RT2" and exp == 1000 + 1200
 
 
 def test_extract_tokens_tolerates_flat_shape_and_absolute_expiry():
