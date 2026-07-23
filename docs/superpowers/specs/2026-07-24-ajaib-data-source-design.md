@@ -161,3 +161,20 @@ All seams injected; no live network (matches `supabase_source`/`orderbook` tests
 
 - `reference-ajaib-data-api` (memory) — endpoint map.
 - `project-news-breakout` (memory) — pipeline history (yfinance → Supabase → VPS).
+
+## Operator runbook (Phase 1)
+
+1. Apply `supabase/schema.sql` in the Supabase SQL editor (creates
+   `price_bars_ajaib` + `ajaib_token`).
+2. Seed the refresh token once: in the SQL editor,
+   `insert into ajaib_token (id, refresh_token) values (1, '<token>')
+   on conflict (id) do update set refresh_token = excluded.refresh_token;`
+   (obtain the token from the logged-in Ajaib web session; the assistant never
+   handles its value).
+3. Trigger `price-fetch-ajaib` via `workflow_dispatch`; confirm it upserts to
+   `price_bars_ajaib` and confirm `ajaib_token.refresh_token` changes if Ajaib
+   rotates the token.
+4. Durability gate: let the scheduled job run ~1 week unattended; confirm zero
+   manual token intervention and that the GitHub (non-Indonesia) IP is not
+   geo-blocked. Accuracy gate: run the comparison script (next milestone) over
+   `price_bars` vs `price_bars_ajaib`.
