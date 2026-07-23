@@ -28,10 +28,13 @@ def _vol():
 def test_alert_has_symbol_phase_and_ratio():
     text = format_orderbook_alert(_snap(), _rm(), None, _vol(), now=NOW, minutes_after_open=45)
     assert "ANTM" in text
-    assert "READY MARKUP" in text
-    assert "rasio 1.00" in text
+    assert "<b>READY MARKUP</b>" in text
+    assert "balance 100%" in text
     assert "300,000" in text
     assert "WIB" in text
+    # ticker is a tappable Stockbit link
+    assert 'href="https://stockbit.com/symbol/ANTM"' in text
+    assert "Buka orderbook" in text
 
 
 def test_prior_accumulation_note():
