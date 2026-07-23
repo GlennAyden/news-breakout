@@ -84,7 +84,8 @@ def run_orderbook_scan(
         text = format_orderbook_alert(
             snap, result, prev, vr, now=now, minutes_after_open=minutes_after_open
         )
-        if sender(settings.telegram_bot_token, chat_id, text, dry_run=settings.dry_run):
+        if sender(settings.telegram_bot_token, chat_id, text, dry_run=settings.dry_run,
+                  parse_mode="HTML", disable_preview=True):
             store.mark_sent(ticker, _SIGNAL_TYPE, _TIMEFRAME, date_str)
             alerted.append(ticker)
     return alerted

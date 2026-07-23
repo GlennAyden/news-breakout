@@ -68,6 +68,7 @@ def scan_once(settings: Settings, daily_data, intraday_data, store: DedupStore,
             alert, catalyst=catalyst,
             min_conf=settings.elliott_min_confidence,
             show_ambiguous=settings.elliott_show_ambiguous,
+            corp_action_caution=settings.news_corp_action_caution,
         )
         if not sender(settings.telegram_bot_token, settings.telegram_breakout_chat_id,
                       text, dry_run=settings.dry_run):

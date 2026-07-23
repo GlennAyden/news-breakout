@@ -50,7 +50,7 @@ def _run(settings, daily, *, fetch_map, sent, calls=None, phase_store=None, stor
             calls.append(symbol)
         return fetch_map.get(symbol)
 
-    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **_):
         sent.append((chat_id, text))
         return True
 
@@ -85,7 +85,7 @@ def test_too_early_in_session_skips():
     def fetcher(symbol, auth, *, now=None):
         return _snap(symbol, 300, 300)
 
-    def sender(bot_token, chat_id, text, *, dry_run, client=None):
+    def sender(bot_token, chat_id, text, *, dry_run, client=None, **_):
         sent.append(text)
         return True
 

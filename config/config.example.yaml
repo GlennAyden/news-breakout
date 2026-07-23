@@ -237,6 +237,7 @@ news:
   poll_interval_offhours_minutes: 60  # cadence outside market hours
   watchlist_passthrough: true       # watchlist tickers bypass the keyword gate
   dedup_retention_days: 90          # prune sent-news bookkeeping older than this
+  corp_action_caution: true         # advisory ⚠️ line when a breakout's catalyst is a material corp action
 
 portal:
   enabled: true           # ticker-matched market news -> News channel
