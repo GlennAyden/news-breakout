@@ -118,4 +118,5 @@ def evaluate_ticker(
     alert.quality_score = components.score
     alert.ext_pct = components.ext_pct
     alert.above_sma50 = components.above_sma50
+    alert.long_channel = components.long_channel
     return alert

@@ -18,10 +18,7 @@ def test_trade_plan_uses_atr_trailing_when_structure_stop_and_atr_present():
     alert.structure_stop = 2900.0
     alert.atr = 80.0
     msg = format_ticker_alert(alert)
-    assert "📍 Rencana" in msg
-    assert "Entry ~3.070" in msg
-    assert "Stop (EW) <2.900" in msg
-    assert "Risk 5.5%" in msg
-    assert "Trail 2.5×ATR ~200" in msg
-    assert "+1R (~3.240)" in msg
-    assert "Target 2R" not in msg
+    assert "💰 Beli  : ~3.070" in msg
+    assert "🛑 Stop  : 2.900 (EW, risiko 5.5%)" in msg
+    assert "🎯 Kelola: capai +1R (~3.240) → trailing stop ~200 di bawah harga" in msg
+    assert "Target: 2R" not in msg
