@@ -292,6 +292,20 @@ daily_shift:
   max_alerts: 15                      # top-N individual alerts at 16:30 WIB
   history_days: 90                    # daily bars fetched for the broad tier
 
+orderbook:
+  # "Ready Markup" playbook: alerts when total BID lot ~= total OFFER lot
+  # (bid/offer setara) for a stock whose today-volume is already >= half of
+  # yesterday's, ~30 min after open. Data pulled from Stockbit's internal API
+  # (requires STOCKBIT_REFRESH_TOKEN). Disabled by default.
+  enabled: false
+  max_symbols_per_scan: 15            # cap Stockbit orderbook calls per cycle
+  request_delay_seconds: 0.7          # throttle between orderbook calls
+  window_after_open_minutes: 30       # rule-2 timing gate: skip earlier in the session
+  early_volume:
+    min_ratio_prev_day: 0.5           # today cumulative vol >= 0.5 * prev-day total
+  phase:
+    rm_balance_min_ratio: 0.85        # Ready Markup if min(bid,offer)/max(bid,offer) >= this
+
 # Price data (M6): the VPS reads OHLCV from Supabase, filled by a GitHub Actions
 # fetcher. Set these in the environment / VPS .env (never commit real values):
 #   SUPABASE_URL=https://<project>.supabase.co

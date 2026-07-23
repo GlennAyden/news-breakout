@@ -58,6 +58,15 @@ class Settings(BaseModel):
     daily_shift_min_price: float = 50
     daily_shift_max_alerts: int = 15
     daily_shift_history_days: int = 90
+    orderbook_enabled: bool = False
+    orderbook_max_symbols_per_scan: int = 15
+    orderbook_request_delay_seconds: float = 0.7
+    orderbook_window_after_open_minutes: int = 30
+    orderbook_early_volume_min_ratio: float = 0.5
+    orderbook_phase_rm_balance_min_ratio: float = 0.85
+    stockbit_refresh_token: str = ""
+    stockbit_access_token: str = ""
+    telegram_orderbook_chat_id: str = ""
 
 
 def _load_env_file(env_path: str) -> None:
@@ -106,6 +115,9 @@ def load_settings(
     sentiment = raw.get("sentiment", {})
     elliott = raw.get("elliott", {})
     daily_shift = raw.get("daily_shift", {})
+    orderbook = raw.get("orderbook", {})
+    ob_volume = orderbook.get("early_volume", {})
+    ob_phase = orderbook.get("phase", {})
     return Settings(
         watchlist=raw["watchlist"],
         donchian_lookback=signals["donchian_lookback"],
@@ -154,6 +166,15 @@ def load_settings(
         daily_shift_min_price=daily_shift.get("min_price", 50),
         daily_shift_max_alerts=daily_shift.get("max_alerts", 15),
         daily_shift_history_days=daily_shift.get("history_days", 90),
+        orderbook_enabled=orderbook.get("enabled", False),
+        orderbook_max_symbols_per_scan=orderbook.get("max_symbols_per_scan", 15),
+        orderbook_request_delay_seconds=orderbook.get("request_delay_seconds", 0.7),
+        orderbook_window_after_open_minutes=orderbook.get("window_after_open_minutes", 30),
+        orderbook_early_volume_min_ratio=ob_volume.get("min_ratio_prev_day", 0.5),
+        orderbook_phase_rm_balance_min_ratio=ob_phase.get("rm_balance_min_ratio", 0.85),
+        stockbit_refresh_token=os.environ.get("STOCKBIT_REFRESH_TOKEN", "").strip(),
+        stockbit_access_token=os.environ.get("STOCKBIT_ACCESS_TOKEN", "").strip(),
+        telegram_orderbook_chat_id=os.environ.get("TELEGRAM_ORDERBOOK_CHAT_ID", "").strip(),
         supabase_url=_normalize_supabase_url(os.environ.get("SUPABASE_URL", "")),
         supabase_key=os.environ.get("SUPABASE_KEY", "").strip(),
         price_staleness_max_minutes=raw.get("monitoring", {}).get("price_staleness_max_minutes", 90),

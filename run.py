@@ -15,9 +15,33 @@ from news_breakout.alerts.telegram import send_message
 from news_breakout.news.idx_source import fetch_disclosures
 from news_breakout.news.booster import recent_by_ticker
 from news_breakout.signals.scan_core import evaluate_scan, scan_once
+from news_breakout.orderbook.auth import StockbitAuth
+from news_breakout.orderbook.state import PhaseStore
+from news_breakout.orderbook.scan import run_orderbook_scan
 
 WIB = ZoneInfo("Asia/Jakarta")
 logger = logging.getLogger("news_breakout")
+
+
+def _maybe_run_orderbook(settings: Settings, daily, store, *, now, sender) -> None:
+    """Ready-Markup orderbook pass — a standalone side alert. Gated by config and
+    fully isolated: any failure here must never abort the main breakout scan."""
+    if not settings.orderbook_enabled:
+        return
+    phase_store = None
+    try:
+        auth = StockbitAuth(settings.stockbit_refresh_token,
+                            access_token=settings.stockbit_access_token)
+        phase_store = PhaseStore("data_cache/orderbook.sqlite")
+        alerted = run_orderbook_scan(settings, daily, store, phase_store,
+                                     now=now, auth=auth, sender=sender)
+        if alerted:
+            logger.info("orderbook Ready-Markup alerts: %s", alerted)
+    except Exception:  # noqa: BLE001 — the orderbook side alert must never break the scan
+        logger.warning("orderbook scan failed", exc_info=True)
+    finally:
+        if phase_store is not None:
+            phase_store.close()
 
 
 def run_scan(
@@ -67,8 +91,10 @@ def run_scan(
         settings.watchlist, settings.universe_candidates, daily,
         settings.min_price, settings.min_daily_value,
     )
-    return scan_once(settings, daily, intraday, store, now=now, sender=sender,
-                     catalysts=catalysts, tickers=scan_tickers)
+    breakout_alerted = scan_once(settings, daily, intraday, store, now=now, sender=sender,
+                                 catalysts=catalysts, tickers=scan_tickers)
+    _maybe_run_orderbook(settings, daily, store, now=now, sender=sender)
+    return breakout_alerted
 
 
 def main() -> None:
