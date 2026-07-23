@@ -36,8 +36,9 @@ REMOTE
 # --- status-only mode ---------------------------------------------------------
 if [ "${1:-}" = "check" ] || [ "${1:-}" = "status" ]; then verify; exit $?; fi
 
-# --- resolve token: argument > ./.env -----------------------------------------
-TOKEN="${1:-}"
+# --- resolve token: argument(s) > ./.env --------------------------------------
+# Use "$*" so a pasted "Bearer <token>" (two cmd args) is joined, not truncated.
+TOKEN="$*"
 if [ -z "$TOKEN" ] && [ -f .env ]; then
   TOKEN="$(grep '^STOCKBIT_ACCESS_TOKEN=' .env | head -1 | cut -d= -f2- || true)"
 fi
