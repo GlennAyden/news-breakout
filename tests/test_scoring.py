@@ -8,6 +8,7 @@ from news_breakout.models import BreakoutSignal, TickerAlert
 from news_breakout.signals.scoring import (
     EXT_PCT_CAP,
     W_EXT,
+    W_LONG_CHANNEL,
     W_TREND_DOWN,
     W_TREND_UP,
     compute_quality_score,
@@ -103,6 +104,36 @@ def test_trend_neutral_when_daily_df_too_short_for_sma50():
     c = compute_score_components(alert, short_df)
     assert c.above_sma50 is None
     assert c.score == pytest.approx(alert.priority)
+
+
+# --- long-channel bonus: 55-bar-high breakouts outperform in backtest ---
+
+def _daily_df_55(last_close, bars=60, plateau_high=110.0):
+    """>=56 bars with a flat prior high, so the 55-bar breakout state is controllable."""
+    closes = [100.0] * (bars - 1) + [last_close]
+    highs = [plateau_high] * (bars - 1) + [max(last_close, plateau_high)]
+    return make_ohlcv(highs=highs, lows=closes, closes=closes, volumes=[100] * bars)
+
+
+def test_long_channel_bonus_when_daily_close_breaks_55bar_high():
+    alert = _alert([_signal(price=100.0, level=100.0)])
+    c = compute_score_components(alert, _daily_df_55(last_close=120.0))
+    assert c.long_channel is True
+    assert c.score == pytest.approx(alert.priority + W_TREND_UP + W_LONG_CHANNEL)
+
+
+def test_no_long_channel_bonus_when_below_55bar_high():
+    alert = _alert([_signal(price=100.0, level=100.0)])
+    c = compute_score_components(alert, _daily_df_55(last_close=105.0))
+    assert c.long_channel is False
+    assert c.score == pytest.approx(alert.priority + W_TREND_UP)
+
+
+def test_long_channel_neutral_when_df_too_short():
+    alert = _alert([_signal(price=100.0, level=100.0)])
+    c = compute_score_components(alert, _daily_df(last_close=120.0, bars=50))
+    assert c.long_channel is None
+    assert c.score == pytest.approx(alert.priority + W_TREND_UP)
 
 
 # --- RVOL: inverted-U in backtest, must never be added to the score ---

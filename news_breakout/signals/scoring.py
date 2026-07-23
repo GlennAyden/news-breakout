@@ -21,6 +21,14 @@ SMA_WINDOW = 50
 # RVOL is inverted-U (moderate-high best, extreme = exhaustion) — deliberately NOT part
 # of the score. It remains a tiebreaker only (see run.py::scan_once / TickerAlert.max_rvol).
 
+# Long-channel confirmation (2026-07-22 gate, 3y/154-ticker replay): signals that also
+# clear the 55-bar prior high outperform those that only clear the 20-bar one
+# (+5.0% vs +2.3% fwd10); adding this bonus widened the score's Q4-Q1 spread
+# 5.3pp -> 6.9pp and lifted rank-IC 0.043 -> 0.062. Detection stays at the
+# 20-bar lookback (recall unchanged) — this only improves ranking.
+W_LONG_CHANNEL = 1.5
+LONG_CHANNEL_LOOKBACK = 55
+
 # EW-2 wave-position adjustment (gate-derived directions; magnitudes are a first
 # cut, tuned by the confirming ranking backtest). wave_3_start reward scales with
 # confidence (gate: high-conf outperformed low-conf).
@@ -35,6 +43,7 @@ class ScoreComponents:
     above_sma50: bool | None
     score: float
     wave_adjust: float = 0.0
+    long_channel: bool | None = None
 
 
 def _top_signal(alert: TickerAlert):
@@ -63,6 +72,16 @@ def _trend_state(daily_df: pd.DataFrame | None) -> bool | None:
     return last_close >= sma50
 
 
+def _long_channel_state(daily_df: pd.DataFrame | None) -> bool | None:
+    """True if the daily close clears the prior 55-bar high (last bar excluded),
+    False if not, None when there isn't enough history to tell."""
+    if daily_df is None or len(daily_df) < LONG_CHANNEL_LOOKBACK + 1:
+        return None
+    prior_high = float(daily_df["High"].iloc[-(LONG_CHANNEL_LOOKBACK + 1):-1].max())
+    last_close = float(daily_df["Close"].iloc[-1])
+    return last_close > prior_high
+
+
 def _wave_adjust(wave_context) -> float:
     """Score nudge from the (advisory) Elliott wave position. 0 when unavailable/neutral."""
     if wave_context is None:
@@ -89,18 +108,22 @@ def compute_score_components(
     top = _top_signal(alert)
     ext_pct = _extension_pct(top.price, top.level)
     above_sma50 = _trend_state(daily_df)
+    long_channel = _long_channel_state(daily_df)
 
     score = alert.priority + W_EXT * ext_pct
     if above_sma50 is True:
         score += W_TREND_UP
     elif above_sma50 is False:
         score -= W_TREND_DOWN
+    if long_channel is True:
+        score += W_LONG_CHANNEL
 
     wave_adj = _wave_adjust(wave_context)
     score += wave_adj
 
     return ScoreComponents(
-        ext_pct=ext_pct, above_sma50=above_sma50, score=score, wave_adjust=wave_adj
+        ext_pct=ext_pct, above_sma50=above_sma50, score=score, wave_adjust=wave_adj,
+        long_channel=long_channel,
     )
 
 

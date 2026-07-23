@@ -1,35 +1,67 @@
 from __future__ import annotations
 
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 from news_breakout.news.idx_source import fetch_disclosures
 from news_breakout.news.curated import is_price_sensitive
 from news_breakout.news.formatter import format_disclosure, format_portal
 from news_breakout.news.portal import fetch_portal_news
+from news_breakout.news.portal_dedup import is_duplicate, normalize_title
 from news_breakout.alerts.telegram import send_message
 
 logger = logging.getLogger("news_breakout")
 
+SEND_SPACING_SECONDS = 1.05
 
-def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_disclosures) -> list[str]:
+
+def _extract_leads(items, extractor, workers: int) -> list[str]:
+    """Fetch article bodies for ``items`` (ordered); any failure degrades to ""."""
+    def one(it):
+        try:
+            return extractor(it.url) or ""
+        except Exception:  # noqa: BLE001 — a fetch failure must not drop the item
+            return ""
+    if workers <= 1:
+        return [one(it) for it in items]
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        return list(ex.map(one, items))
+
+
+def run_news_feed(settings, store, *, now, sender=send_message, fetcher=fetch_disclosures,
+                  failure_streak=0, sleeper=time.sleep) -> list[str]:
     disclosures = fetcher(settings.disclosure_page_size, now=now, proxy=settings.idx_proxy)
-    curated = [d for d in disclosures if is_price_sensitive(d, settings.curated_keywords)]
+    streak = failure_streak() if callable(failure_streak) else failure_streak
+    if streak >= settings.news_outage_max_failures:
+        key = f"news-outage-{now:%Y-%m-%d}"
+        if not store.news_already_sent(key):
+            warn = (f"⚠️ Feed keterbukaan IDX gagal {streak} kali beruntun — "
+                    "Cloudflare/proxy bermasalah?")
+            if sender(settings.telegram_bot_token, settings.telegram_news_chat_id,
+                      warn, dry_run=settings.dry_run):
+                store.news_mark_sent(key)   # one outage heads-up per day
+    watchset = set(settings.watchlist) if settings.news_watchlist_passthrough else set()
+    curated = [d for d in disclosures
+               if is_price_sensitive(d, settings.curated_keywords) or d.ticker in watchset]
     curated.sort(key=lambda d: d.timestamp)  # oldest first
     sent_ids: list[str] = []
     for d in curated:
         if store.news_already_sent(d.disclosure_id):
             continue
+        if sent_ids:   # space consecutive sends (Telegram per-chat rate limit)
+            sleeper(SEND_SPACING_SECONDS)
         if not sender(settings.telegram_bot_token, settings.telegram_news_chat_id,
                       format_disclosure(d), dry_run=settings.dry_run):
             continue
-        store.news_mark_sent(d.disclosure_id)
+        store.news_mark_sent(d.disclosure_id, sent_at=f"{now:%Y-%m-%d}")
         sent_ids.append(d.disclosure_id)
     logger.info("news feed: %d curated, %d newly sent", len(curated), len(sent_ids))
     return sent_ids
 
 
 def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_portal_news,
-                    extractor=None, classifier=None) -> list[str]:
+                    extractor=None, classifier=None, sleeper=time.sleep) -> list[str]:
     if not settings.portal_enabled:
         return []
     from news_breakout.news.extract import fetch_article_text, lead_summary, strip_leading_title
@@ -38,7 +70,8 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
 
     if extractor is None:
         def extractor(url):
-            return fetch_article_text(url, http_get=_default_http_get)
+            return fetch_article_text(
+                url, http_get=lambda u: _default_http_get(u, settings.portal_proxy))
     if classifier is None:
         classifier = _classify
 
@@ -46,17 +79,14 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
     # so market news about any scanned liquid stock gets surfaced too
     tickers = list(dict.fromkeys(settings.watchlist + settings.universe_candidates))
     items = fetcher(settings.portal_sources, tickers, settings.portal_name_map, now=now,
-                    corp_keywords=settings.curated_keywords)
+                    corp_keywords=settings.curated_keywords, global_proxy=settings.portal_proxy)
 
     # drop already-sent items before the expensive per-item fetch/classify stages below
     items = [it for it in items if not store.news_already_sent(it.url)]
 
     # extractive summary from the full article body (fall back to the RSS description)
-    for it in items:
-        try:
-            body = extractor(it.url)
-        except Exception:  # noqa: BLE001 — a fetch failure must not drop the item
-            body = ""
+    bodies = _extract_leads(items, extractor, settings.portal_fetch_workers)
+    for it, body in zip(items, bodies):
         body = strip_leading_title(body, it.title)  # avoid echoing the hyperlinked headline
         it.lead = lead_summary(body or it.summary, settings.portal_summary_sentences)
 
@@ -76,17 +106,36 @@ def run_portal_feed(settings, store, *, now, sender=send_message, fetcher=fetch_
     strong = {"positif": 0, "negatif": 0}
     items.sort(key=lambda i: (not i.corp_action, strong.get(i.sentiment, 1), i.timestamp))
 
+    day = f"{now:%Y-%m-%d}"
+    threshold = settings.portal_dup_title_threshold
+    seen_by_ticker: dict[str, list[set[str]]] = {}
+
+    def _seen(ticker: str) -> list[set[str]]:
+        if ticker not in seen_by_ticker:
+            seen_by_ticker[ticker] = [set(t.split())
+                                      for t in store.titles_for_day(day, ticker)]
+        return seen_by_ticker[ticker]
+
     sent = []
     for it in items:
         if len(sent) >= settings.portal_max_per_run:
             break
         if store.news_already_sent(it.url):
             continue
+        tokens = normalize_title(it.title)
+        if is_duplicate(tokens, _seen(it.ticker), threshold):
+            store.news_mark_sent(it.url, sent_at=f"{now:%Y-%m-%d}")   # suppressed near-dup must not resurface
+            logger.info("portal near-dup suppressed: %s", it.title)
+            continue
+        if sent:   # space consecutive sends (Telegram per-chat rate limit)
+            sleeper(SEND_SPACING_SECONDS)
         if not sender(settings.telegram_bot_token, settings.telegram_news_chat_id,
                       format_portal(it), dry_run=settings.dry_run,
                       parse_mode="HTML", disable_preview=True):
             continue
-        store.news_mark_sent(it.url)
+        store.news_mark_sent(it.url, sent_at=f"{now:%Y-%m-%d}")
+        store.add_title(day, it.ticker, " ".join(sorted(tokens)))
+        _seen(it.ticker).append(tokens)
         sent.append(it.url)
     logger.info("portal feed: %d matched, %d newly sent", len(items), len(sent))
     return sent

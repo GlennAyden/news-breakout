@@ -48,6 +48,10 @@ def scan_once(settings: Settings, daily_data, intraday_data, store: DedupStore,
     scan_list = settings.watchlist if tickers is None else tickers
     alerts = evaluate_scan(settings, daily_data, intraday_data, now=now,
                            catalysts=catalysts, tickers=scan_list)
+    # Quality floor (gate-backed): low-score alerts underperform; the news boost is
+    # applied before this, so a fresh catalyst can still lift a marginal alert over it.
+    if settings.min_quality_score is not None:
+        alerts = [a for a in alerts if a.quality_score >= settings.min_quality_score]
     if max_alerts is not None:
         alerts = alerts[:max_alerts]
 
