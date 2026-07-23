@@ -405,3 +405,15 @@ def test_explicit_null_name_map_file_is_fine(tmp_path, monkeypatch):
     ), encoding="utf-8")
     s = _load(cfg, monkeypatch)
     assert s.portal_name_map == {}
+
+
+def test_corp_action_caution_defaults_true_and_reads_false(tmp_path, monkeypatch):
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text(_MINIMAL_YAML, encoding="utf-8")
+    assert _load(cfg, monkeypatch).news_corp_action_caution is True
+
+    cfg2 = tmp_path / "c2.yaml"
+    cfg2.write_text(_MINIMAL_YAML.replace(
+        "news_poll_interval_minutes: 60",
+        "news_poll_interval_minutes: 60, corp_action_caution: false"), encoding="utf-8")
+    assert _load(cfg2, monkeypatch).news_corp_action_caution is False

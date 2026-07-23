@@ -71,6 +71,7 @@ class Settings(BaseModel):
     portal_proxy: str = ""
     portal_name_map_file: str = "config/name_map.yaml"
     portal_drop_categories: list[str] = ["tata_kelola", "pasar_opini"]
+    news_corp_action_caution: bool = True
     orderbook_enabled: bool = False
     orderbook_max_symbols_per_scan: int = 15
     orderbook_request_delay_seconds: float = 0.7
@@ -209,6 +210,7 @@ def load_settings(
         portal_fetch_workers=portal.get("fetch_workers", 4),
         portal_proxy=portal.get("proxy", ""),
         portal_drop_categories=portal.get("drop_categories", ["tata_kelola", "pasar_opini"]),
+        news_corp_action_caution=news.get("corp_action_caution", True),
         orderbook_enabled=orderbook.get("enabled", False),
         orderbook_max_symbols_per_scan=orderbook.get("max_symbols_per_scan", 15),
         orderbook_request_delay_seconds=orderbook.get("request_delay_seconds", 0.7),

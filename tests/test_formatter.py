@@ -121,6 +121,47 @@ def test_format_ticker_alert_trade_plan_degenerate_level_does_not_crash():
     assert "🎯" not in msg
 
 
+def _alert_with(catalyst_title):
+    ts = datetime(2026, 7, 17, 15, 30, tzinfo=ZoneInfo("Asia/Jakarta"))
+    sig = BreakoutSignal("ANTM", "1D", "resistance_breakout", 1500.0, 3.4, 1480.0, 2.7, ts)
+    alert = TickerAlert("ANTM", [sig], priority=5.0, timestamp=ts)
+    alert.quality_score = 6.5
+    cat = Disclosure("ANTM", catalyst_title, ts - timedelta(hours=3), "d1", "http://x")
+    return alert, cat
+
+
+def test_caution_line_shown_for_rights_issue():
+    alert, cat = _alert_with("Jadwal rights issue ANTM")
+    msg = format_ticker_alert(alert, catalyst=cat)
+    assert "⚠️ Peringatan: rights issue" in msg
+    assert "📰 Katalis:" in msg                 # catalyst line still present
+
+
+def test_caution_line_wording_per_category():
+    for title, needle in [
+        ("HATM private placement 800 juta saham", "private placement — risiko dilusi"),
+        ("BTN akuisisi bank lain", "akuisisi/divestasi — pola beli-rumor"),
+        ("ANTM bagikan dividen", "katalis dividen — run-up sering sudah lelah"),
+    ]:
+        alert, cat = _alert_with(title)
+        assert needle in format_ticker_alert(alert, catalyst=cat), title
+
+
+def test_no_caution_for_buyback_routine_or_no_catalyst():
+    for title in ["ASII buyback saham Rp8 triliun", "Laporan Bulanan Registrasi Pemegang Efek"]:
+        alert, cat = _alert_with(title)
+        assert "⚠️ Peringatan" not in format_ticker_alert(alert, catalyst=cat), title
+    alert, _ = _alert_with("x")
+    assert "⚠️ Peringatan" not in format_ticker_alert(alert, catalyst=None)
+
+
+def test_caution_suppressed_when_toggle_off():
+    alert, cat = _alert_with("Jadwal rights issue ANTM")
+    msg = format_ticker_alert(alert, catalyst=cat, corp_action_caution=False)
+    assert "⚠️ Peringatan" not in msg
+    assert "📰 Katalis:" in msg                 # catalyst line unaffected by the toggle
+
+
 def test_format_daily_digest_ranks_and_lists():
     from news_breakout.alerts.formatter import format_daily_digest
     WIB = ZoneInfo("Asia/Jakarta")

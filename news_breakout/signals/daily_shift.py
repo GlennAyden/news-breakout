@@ -7,7 +7,7 @@ from news_breakout.data.universe import resolve_scan_tickers
 from news_breakout.signals.scan_core import evaluate_scan, scan_once
 from news_breakout.alerts.formatter import format_daily_digest
 from news_breakout.alerts.telegram import send_message
-from news_breakout.news.booster import recent_by_ticker
+from news_breakout.news.booster import pick_catalyst
 from news_breakout.news.idx_source import fetch_disclosures
 
 logger = logging.getLogger("news_breakout")
@@ -47,7 +47,7 @@ def run_daily_scan(settings, store, *, now, mode, daily_fetcher,
                                   proxy=settings.idx_proxy, retries=0)
     except Exception:  # noqa: BLE001 — a disclosure fetch failure must not abort the scan
         disc = []
-    catalysts = recent_by_ticker(disc, now=now, window_hours=settings.news_booster_window_hours)
+    catalysts = pick_catalyst(disc, now=now, window_hours=settings.news_booster_window_hours)
 
     if mode == "detect":
         return scan_once(settings, daily, {}, store, now=now, sender=sender,

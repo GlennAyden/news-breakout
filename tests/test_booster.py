@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from news_breakout.news.models import Disclosure
-from news_breakout.news.booster import recent_by_ticker
+from news_breakout.news.booster import recent_by_ticker, pick_catalyst
 
 WIB = ZoneInfo("Asia/Jakarta")
 NOW = datetime(2026, 7, 18, 16, 0, tzinfo=WIB)
@@ -45,3 +45,27 @@ def test_keeps_most_recent_when_ticker_has_two():
 
     result2 = recent_by_ticker([newer, older], now=NOW, window_hours=48)
     assert result2["ANTM"].disclosure_id == "new"
+
+
+def test_pick_catalyst_prefers_material_over_more_recent_routine():
+    routine = _disc("ANTM", 1, disclosure_id="routine",
+                    title="Laporan Bulanan Registrasi Pemegang Efek")   # newer
+    material = _disc("ANTM", 5, disclosure_id="rights",
+                     title="Jadwal rights issue ANTM")                  # older but material
+    result = pick_catalyst([routine, material], now=NOW, window_hours=48)
+    assert result["ANTM"].disclosure_id == "rights"
+
+
+def test_pick_catalyst_falls_back_to_most_recent_when_all_routine():
+    older = _disc("ANTM", 10, disclosure_id="old", title="Penyampaian Bukti Iklan")
+    newer = _disc("ANTM", 2, disclosure_id="new", title="Laporan Bulanan Registrasi")
+    result = pick_catalyst([older, newer], now=NOW, window_hours=48)
+    assert result["ANTM"].disclosure_id == "new"
+
+
+def test_pick_catalyst_same_keyset_as_recent_by_ticker():
+    discs = [_disc("ANTM", 1, title="Rights issue"),
+             _disc("BBRI", 2, title="Laporan Bulanan"),
+             _disc("TINS", 60, title="Dividen")]   # out of window
+    assert set(pick_catalyst(discs, now=NOW, window_hours=48)) == \
+           set(recent_by_ticker(discs, now=NOW, window_hours=48))

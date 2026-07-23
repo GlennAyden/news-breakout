@@ -4,6 +4,7 @@ from datetime import datetime
 
 from news_breakout.models import TF_WEIGHT, BreakoutSignal, TickerAlert
 from news_breakout.news.models import Disclosure
+from news_breakout.news.corp_action import CAUTION_LINES, classify_corp_action
 from news_breakout.signals.elliott.annotate import elliott_block
 from news_breakout.signals.elliott.trade_plan import trail_plan
 
@@ -115,7 +116,8 @@ def _trend_line(alert: TickerAlert) -> str | None:
 
 
 def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None, *,
-                        min_conf: float = 0.45, show_ambiguous: bool = False) -> str:
+                        min_conf: float = 0.45, show_ambiguous: bool = False,
+                        corp_action_caution: bool = True) -> str:
     marker = "🔥" if catalyst is not None else "🚨"
     lines = [
         f"{marker} BREAKOUT — {alert.ticker} · {_tf_header(alert.signals)} "
@@ -137,6 +139,10 @@ def format_ticker_alert(alert: TickerAlert, catalyst: Disclosure | None = None, 
         lines.append(
             f"📰 Katalis: {catalyst.title} ({_time_ago(catalyst.timestamp, alert.timestamp)})"
         )
+        if corp_action_caution:
+            caution = CAUTION_LINES.get(classify_corp_action(catalyst.title))
+            if caution:
+                lines.append(caution)
     lines.append(f"⏱️ {alert.timestamp:%H:%M} WIB · delay data ~15 mnt")
     return "\n".join(lines)
 

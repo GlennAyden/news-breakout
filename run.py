@@ -13,7 +13,7 @@ from news_breakout.alerts.staleness import check_price_staleness
 from news_breakout.alerts.dedup import DedupStore
 from news_breakout.alerts.telegram import send_message
 from news_breakout.news.idx_source import fetch_disclosures
-from news_breakout.news.booster import recent_by_ticker
+from news_breakout.news.booster import pick_catalyst
 from news_breakout.signals.scan_core import evaluate_scan, scan_once
 from news_breakout.orderbook.auth import StockbitAuth
 from news_breakout.orderbook.state import PhaseStore
@@ -86,7 +86,7 @@ def run_scan(
                                   proxy=settings.idx_proxy, retries=0)
     except Exception:  # noqa: BLE001
         disc = []
-    catalysts = recent_by_ticker(disc, now=now, window_hours=settings.news_booster_window_hours)
+    catalysts = pick_catalyst(disc, now=now, window_hours=settings.news_booster_window_hours)
     scan_tickers = resolve_scan_tickers(
         settings.watchlist, settings.universe_candidates, daily,
         settings.min_price, settings.min_daily_value,
