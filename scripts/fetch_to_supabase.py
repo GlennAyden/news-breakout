@@ -116,14 +116,14 @@ def fetch_all(watchlist: list, history_days: int, intraday_days: int, downloader
     return all_rows
 
 
-def upsert(rows: list, url: str, key: str, *, poster=None) -> bool:
+def upsert(rows: list, url: str, key: str, *, poster=None, table: str = "price_bars") -> bool:
     """Upsert rows in chunks; return True iff every chunk returned 2xx."""
     if poster is None:
         import httpx
 
         def poster(u, headers, json):
             return httpx.post(u, headers=headers, json=json, timeout=60).status_code
-    endpoint = f"{url}/rest/v1/price_bars"
+    endpoint = f"{url}/rest/v1/{table}"
     headers = {
         "apikey": key, "Authorization": f"Bearer {key}",
         "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates",
@@ -137,12 +137,55 @@ def upsert(rows: list, url: str, key: str, *, poster=None) -> bool:
     return ok
 
 
+def read_ajaib_refresh_token(url: str, key: str, *, http_get=None) -> str:
+    if http_get is None:
+        import httpx
+
+        def http_get(u, headers, params):
+            return httpx.get(u, headers=headers, params=params, timeout=30).json()
+    headers = {"apikey": key, "Authorization": f"Bearer {key}"}
+    params = {"select": "refresh_token", "id": "eq.1"}
+    data = http_get(f"{url}/rest/v1/ajaib_token", headers, params) or []
+    if not data:
+        raise RuntimeError("ajaib_token row is empty — seed the refresh token first")
+    return data[0]["refresh_token"]
+
+
+def write_ajaib_refresh_token(url: str, key: str, token: str, *, poster=None) -> None:
+    if poster is None:
+        import httpx
+
+        def poster(u, headers, json):
+            return httpx.post(u, headers=headers, json=json, timeout=30).status_code
+    headers = {
+        "apikey": key, "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates",
+    }
+    status = poster(f"{url}/rest/v1/ajaib_token", headers, [{"id": 1, "refresh_token": token}])
+    if status not in (200, 201, 204):
+        print(f"WARNING: ajaib_token write returned HTTP {status}", file=sys.stderr)
+
+
+def fetch_all_ajaib(tickers: list, history_days: int, auth, *,
+                    resolution: str = "1D", fetch=None) -> list:
+    from news_breakout.data.ajaib_source import countback_for_days, fetch_many
+
+    fetch = fetch or fetch_many
+    store_iv = "1d" if resolution.upper() == "1D" else "60m"
+    countback = countback_for_days(history_days, resolution)
+    frames = fetch(tickers, auth, resolution=resolution, countback=countback)
+    rows: list = []
+    for t, df in frames.items():
+        rows.extend(to_rows(df[_COLUMNS], t, store_iv))
+    return rows
+
+
 def main() -> None:
     import argparse
-    import yfinance as yf
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["intraday", "daily"], default="intraday")
+    ap.add_argument("--source", choices=["yahoo", "ajaib"], default="yahoo")
     args = ap.parse_args()
 
     url = _normalize_supabase_url(os.environ["SUPABASE_URL"])
@@ -152,16 +195,31 @@ def main() -> None:
     if args.mode == "daily":
         tickers = load_daily_universe(ds.get("universe_file", "config/idx_all.txt"))
         hist = ds.get("history_days", 90)
-        rows = fetch_all(tickers, hist, intraday_days, yf.download, mode="daily")
     else:
         tickers = list(dict.fromkeys(watchlist + universe_candidates))
-        rows = fetch_all(tickers, history_days, intraday_days, yf.download)
+        hist = history_days
 
-    print(f"[{args.mode}] fetched {len(rows)} bars for {len(tickers)} tickers")
+    if args.source == "ajaib":
+        from news_breakout.data.ajaib_auth import AjaibAuth
+
+        rt = read_ajaib_refresh_token(url, key)
+        auth = AjaibAuth(rt, token_writer=lambda t: write_ajaib_refresh_token(url, key, t))
+        rows = fetch_all_ajaib(tickers, hist, auth, resolution="1D")
+        table = "price_bars_ajaib"
+    else:
+        import yfinance as yf
+
+        if args.mode == "daily":
+            rows = fetch_all(tickers, hist, intraday_days, yf.download, mode="daily")
+        else:
+            rows = fetch_all(tickers, history_days, intraday_days, yf.download)
+        table = "price_bars"
+
+    print(f"[{args.mode}/{args.source}] fetched {len(rows)} bars for {len(tickers)} tickers")
     if not rows:
-        print("ERROR: 0 bars fetched — aborting upsert (likely a Yahoo outage)", file=sys.stderr)
+        print("ERROR: 0 bars fetched — aborting upsert", file=sys.stderr)
         sys.exit(1)
-    if not upsert(rows, url, key):
+    if not upsert(rows, url, key, table=table):
         print("ERROR: one or more upsert chunks failed — see warnings above", file=sys.stderr)
         sys.exit(1)
     print("upsert complete")

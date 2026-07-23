@@ -180,3 +180,41 @@ def test_fetch_all_intraday_mode_is_1d_and_60m():
 
     fetch_all(["ANTM"], 120, 60, downloader)     # default mode
     assert calls == ["1d", "60m"]
+
+
+def test_upsert_targets_custom_table():
+    sent = []
+    def poster(url, headers, json):
+        sent.append(url); return 201
+    fts.upsert([{"ticker": "X", "interval": "1d", "ts": "t", "open": 1, "high": 1,
+                 "low": 1, "close": 1, "volume": 1}],
+               "https://p.supabase.co", "svc", poster=poster, table="price_bars_ajaib")
+    assert sent[0] == "https://p.supabase.co/rest/v1/price_bars_ajaib"
+
+
+def test_fetch_all_ajaib_builds_rows_from_fetch_many():
+    idx = pd.to_datetime([1782276300000], unit="ms", utc=True)
+    frame = pd.DataFrame({"Open": [1.0], "High": [2.0], "Low": [0.5],
+                          "Close": [1.5], "Volume": [100]}, index=idx)
+    def fake_fetch(tickers, auth, *, resolution, countback, **kw):
+        return {t: frame for t in tickers}
+    rows = fts.fetch_all_ajaib(["BBCA", "ANTM"], 90, auth=object(), fetch=fake_fetch)
+    assert {r["ticker"] for r in rows} == {"BBCA", "ANTM"}
+    assert all(r["interval"] == "1d" for r in rows)
+    assert rows[0]["ts"].endswith("+00:00")
+
+
+def test_read_ajaib_refresh_token_returns_stored_value():
+    def http_get(url, headers, params):
+        assert url.endswith("/rest/v1/ajaib_token")
+        return [{"refresh_token": "RT"}]
+    assert fts.read_ajaib_refresh_token("https://p.supabase.co", "svc", http_get=http_get) == "RT"
+
+
+def test_write_ajaib_refresh_token_upserts_single_row():
+    sent = []
+    def poster(url, headers, json):
+        sent.append((url, json)); return 201
+    fts.write_ajaib_refresh_token("https://p.supabase.co", "svc", "RT2", poster=poster)
+    assert sent[0][0].endswith("/rest/v1/ajaib_token")
+    assert sent[0][1] == [{"id": 1, "refresh_token": "RT2"}]
