@@ -26,11 +26,7 @@ create table if not exists price_bars_ajaib (
   primary key (ticker, interval, ts)
 );
 create index if not exists price_bars_ajaib_lookup on price_bars_ajaib (ticker, interval, ts desc);
-
--- Single-row store for the current Ajaib refresh token, so the GitHub Actions
--- fetcher survives token rotation unattended. id is always 1.
-create table if not exists ajaib_token (
-  id            int primary key default 1,
-  refresh_token text not null,
-  updated_at    timestamptz not null default now()
-);
+-- (The ajaib_token refresh-token table was dropped: Ajaib's access token is
+-- short-lived and cannot be refreshed unattended, so the Ajaib puller is
+-- on-demand with a freshly-exported token via AJAIB_ACCESS_TOKEN, not a stored
+-- refresh token. If you already created ajaib_token, you can `drop table ajaib_token;`.)

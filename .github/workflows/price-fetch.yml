@@ -28,18 +28,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python scripts/fetch_to_supabase.py --mode "${{ github.event.inputs.mode || 'intraday' }}"
-  price-fetch-ajaib:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    if: ${{ github.event.inputs.mode == 'daily' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install --quiet yfinance==0.2.66 httpx==0.27.2 pandas==2.2.3 pyyaml==6.0.2
-      - name: Fetch Ajaib prices to Supabase
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python scripts/fetch_to_supabase.py --source ajaib --mode daily
+  # NOTE: no Ajaib job here. Ajaib's access token is short-lived (~1h) and cannot
+  # be refreshed unattended, so it is not viable on a schedule. Run the Ajaib
+  # puller ON-DEMAND locally with a freshly-exported token:
+  #   AJAIB_ACCESS_TOKEN=<jwt> python scripts/fetch_to_supabase.py --source ajaib --mode daily

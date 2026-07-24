@@ -196,25 +196,19 @@ def test_fetch_all_ajaib_builds_rows_from_fetch_many():
     idx = pd.to_datetime([1782276300000], unit="ms", utc=True)
     frame = pd.DataFrame({"Open": [1.0], "High": [2.0], "Low": [0.5],
                           "Close": [1.5], "Volume": [100]}, index=idx)
-    def fake_fetch(tickers, auth, *, resolution, countback, **kw):
+    seen = {}
+    def fake_fetch(tickers, access_token, *, resolution, countback, **kw):
+        seen["token"] = access_token; seen["countback"] = countback
         return {t: frame for t in tickers}
-    rows = fts.fetch_all_ajaib(["BBCA", "ANTM"], 90, auth=object(), fetch=fake_fetch)
+    rows = fts.fetch_all_ajaib(["BBCA", "ANTM"], 90, "ACCESS", fetch=fake_fetch)
     assert {r["ticker"] for r in rows} == {"BBCA", "ANTM"}
     assert all(r["interval"] == "1d" for r in rows)
     assert rows[0]["ts"].endswith("+00:00")
+    assert seen["token"] == "ACCESS"  # access token threaded through, not an auth object
 
 
-def test_read_ajaib_refresh_token_returns_stored_value():
-    def http_get(url, headers, params):
-        assert url.endswith("/rest/v1/ajaib_token")
-        return [{"refresh_token": "RT"}]
-    assert fts.read_ajaib_refresh_token("https://p.supabase.co", "svc", http_get=http_get) == "RT"
-
-
-def test_write_ajaib_refresh_token_upserts_single_row():
-    sent = []
-    def poster(url, headers, json):
-        sent.append((url, json)); return 201
-    fts.write_ajaib_refresh_token("https://p.supabase.co", "svc", "RT2", poster=poster)
-    assert sent[0][0].endswith("/rest/v1/ajaib_token")
-    assert sent[0][1] == [{"id": 1, "refresh_token": "RT2"}]
+def test_fetch_all_ajaib_countback_override():
+    def fake_fetch(tickers, access_token, *, resolution, countback, **kw):
+        assert countback == 800  # explicit override wins over history_days derivation
+        return {}
+    fts.fetch_all_ajaib(["BBCA"], 90, "ACCESS", countback=800, fetch=fake_fetch)

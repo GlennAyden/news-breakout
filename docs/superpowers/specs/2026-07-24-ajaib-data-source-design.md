@@ -1,7 +1,47 @@
 # Ajaib as the IDX price data source — design
 
 Date: 2026-07-24
-Status: Design (approved in brainstorming; pending spec review)
+Status: **PIVOTED to on-demand** — the unattended-backbone goal below was invalidated
+by live validation (see the update box). Ajaib is now an on-demand puller, not a 24/7
+backbone. yfinance stays the automated backbone.
+
+## UPDATE 2026-07-24 — validation outcome & pivot
+
+Live validation from a residential Indonesia IP (with the user's exported session)
+resolved the two SEAMs and changed the plan:
+
+- **WAF:** `ht2.ajaib.co.id` sits behind Cloudflare-style bot protection. Plain
+  `httpx` gets a 403 challenge page; `curl_cffi` with `impersonate="chrome120"`
+  passes it (same dependency the news fetcher already uses).
+- **Data-endpoint auth (SOLVED):** the candlestick endpoint authenticates with
+  `Authorization: jwt <access_token>` — scheme is literally `jwt`, **not** `Bearer`.
+  With curl_cffi + jwt + a fresh access token it returns OHLCV.
+- **Refresh (BLOCKER):** `/api/v7/refresh/` requires a **still-valid** access token
+  to identify the session (`EC0000006 "Tidak menemukan sesi"` when the access token
+  has expired). The access token is short-lived (~1h) and cannot be renewed
+  unattended from a lone refresh token — the same fragility that ruled out Stockbit.
+
+**Consequence:** an unattended 24/7 GitHub Actions fetcher is NOT viable (the access
+token expires between daily runs and can't self-renew). Ajaib data is excellent but
+only practical **on-demand**: the user exports a fresh access token and runs the
+puller within its ~1h life.
+
+**What shipped after the pivot:** `ajaib_source.py` uses curl_cffi + the `jwt`
+scheme and takes an access-token string directly; `ajaib_auth.py` (the refresh flow)
+and the `ajaib_token` table were removed; the scheduled `price-fetch-ajaib` CI job
+was removed. On-demand usage:
+
+```
+AJAIB_ACCESS_TOKEN=<fresh jwt access token>  # from the trade.ajaib.co.id session
+python scripts/fetch_to_supabase.py --source ajaib --mode daily [--countback 800]
+```
+
+This writes IDX-native OHLCV to `price_bars_ajaib` for the accuracy comparison
+against yfinance's `price_bars`, and is the basis for on-demand uses (accurate
+one-off backtests, thin-name/bandarmology verification). The original
+unattended-backbone design below is retained for history but superseded.
+
+---
 
 ## Problem
 

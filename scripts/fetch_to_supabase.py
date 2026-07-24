@@ -137,43 +137,16 @@ def upsert(rows: list, url: str, key: str, *, poster=None, table: str = "price_b
     return ok
 
 
-def read_ajaib_refresh_token(url: str, key: str, *, http_get=None) -> str:
-    if http_get is None:
-        import httpx
-
-        def http_get(u, headers, params):
-            return httpx.get(u, headers=headers, params=params, timeout=30).json()
-    headers = {"apikey": key, "Authorization": f"Bearer {key}"}
-    params = {"select": "refresh_token", "id": "eq.1"}
-    data = http_get(f"{url}/rest/v1/ajaib_token", headers, params) or []
-    if not data:
-        raise RuntimeError("ajaib_token row is empty — seed the refresh token first")
-    return data[0]["refresh_token"]
-
-
-def write_ajaib_refresh_token(url: str, key: str, token: str, *, poster=None) -> None:
-    if poster is None:
-        import httpx
-
-        def poster(u, headers, json):
-            return httpx.post(u, headers=headers, json=json, timeout=30).status_code
-    headers = {
-        "apikey": key, "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates",
-    }
-    status = poster(f"{url}/rest/v1/ajaib_token", headers, [{"id": 1, "refresh_token": token}])
-    if status not in (200, 201, 204):
-        print(f"WARNING: ajaib_token write returned HTTP {status}", file=sys.stderr)
-
-
-def fetch_all_ajaib(tickers: list, history_days: int, auth, *,
-                    resolution: str = "1D", fetch=None) -> list:
+def fetch_all_ajaib(tickers: list, history_days: int, access_token: str, *,
+                    resolution: str = "1D", countback: int | None = None, fetch=None) -> list:
+    """On-demand Ajaib pull. `access_token` is a freshly-exported jwt access token
+    (short-lived; there is no unattended refresh). Returns rows for upsert."""
     from news_breakout.data.ajaib_source import countback_for_days, fetch_many
 
     fetch = fetch or fetch_many
     store_iv = "1d" if resolution.upper() == "1D" else "60m"
-    countback = countback_for_days(history_days, resolution)
-    frames = fetch(tickers, auth, resolution=resolution, countback=countback)
+    cb = countback if countback is not None else countback_for_days(history_days, resolution)
+    frames = fetch(tickers, access_token, resolution=resolution, countback=cb)
     rows: list = []
     for t, df in frames.items():
         rows.extend(to_rows(df[_COLUMNS], t, store_iv))
@@ -186,6 +159,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["intraday", "daily"], default="intraday")
     ap.add_argument("--source", choices=["yahoo", "ajaib"], default="yahoo")
+    ap.add_argument("--countback", type=int, default=None,
+                    help="ajaib only: override bar count (e.g. 800 to seed a backtest)")
     args = ap.parse_args()
 
     url = _normalize_supabase_url(os.environ["SUPABASE_URL"])
@@ -200,11 +175,15 @@ def main() -> None:
         hist = history_days
 
     if args.source == "ajaib":
-        from news_breakout.data.ajaib_auth import AjaibAuth
-
-        rt = read_ajaib_refresh_token(url, key)
-        auth = AjaibAuth(rt, token_writer=lambda t: write_ajaib_refresh_token(url, key, t))
-        rows = fetch_all_ajaib(tickers, hist, auth, resolution="1D")
+        # On-demand only: the caller supplies a freshly-exported jwt access token
+        # via AJAIB_ACCESS_TOKEN (short-lived ~1h, no unattended refresh). Run this
+        # locally right after exporting the token; it writes to price_bars_ajaib.
+        access_token = os.environ.get("AJAIB_ACCESS_TOKEN", "").strip()
+        if not access_token:
+            print("ERROR: AJAIB_ACCESS_TOKEN not set — export a fresh Ajaib access token first",
+                  file=sys.stderr)
+            sys.exit(1)
+        rows = fetch_all_ajaib(tickers, hist, access_token, resolution="1D", countback=args.countback)
         table = "price_bars_ajaib"
     else:
         import yfinance as yf
