@@ -138,3 +138,37 @@ def test_expired_watch_is_pruned_silently():
         evaluator=lambda *a, **k: [], is_open=lambda: True)
     assert out == []
     assert store.get("OLD") is None
+
+
+def test_breakout_pass_isolates_per_symbol_failure():
+    now = datetime(2026, 7, 25, 20, 0, tzinfo=WIB)
+    store = ConfluenceStore(":memory:")
+    items = [PortalNews(ticker="AAAA", title="t", timestamp=now, url="u", source="s", sentiment="positif"),
+             PortalNews(ticker="BBBB", title="t", timestamp=now, url="u", source="s", sentiment="positif")]
+    bad = TickerAlert(ticker="AAAA", signals=[], priority=1.0, timestamp=now, quality_score=7.0)
+    good = _alert("BBBB", now)
+    def ev(settings, daily, intraday, *, now, catalysts, tickers):
+        return [bad] if tickers[0] == "AAAA" else [good]  # empty-signals alert -> _breakout_payload raises
+    sent, sender = _sender_recorder()
+    out = run_confluence_cycle(
+        _settings(), store, now=now, holidays=set(), portal_items=items, disclosures=[],
+        daily_data={"AAAA": object(), "BBBB": object()}, intraday_data={},
+        sender=sender, evaluator=ev, is_open=lambda: False)
+    assert out == [("BBBB", "2of3")]                     # A failed but did NOT abort the cycle
+    assert store.get("AAAA").stage_alerted == "none"
+    assert store.get("BBBB").stage_alerted == "2of3"
+
+
+def test_min_quality_floor_rejects_low_quality_breakout():
+    now = datetime(2026, 7, 25, 20, 0, tzinfo=WIB)
+    store = ConfluenceStore(":memory:")
+    items = [PortalNews(ticker="BBRI", title="t", timestamp=now, url="u", source="s", sentiment="positif")]
+    low = _alert("BBRI", now)                            # quality_score 7.0
+    sent, sender = _sender_recorder()
+    out = run_confluence_cycle(
+        _settings(min_quality_score=8.0), store, now=now, holidays=set(), portal_items=items,
+        disclosures=[], daily_data={"BBRI": object()}, intraday_data={},
+        sender=sender, evaluator=lambda *a, **k: [low], is_open=lambda: False)
+    assert out == []
+    assert sent == []
+    assert store.get("BBRI").stage_alerted == "none"

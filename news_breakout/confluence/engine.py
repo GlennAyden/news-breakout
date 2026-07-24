@@ -74,25 +74,25 @@ def run_confluence_cycle(
         try:
             alerts = evaluator(settings, daily_data, intraday_data, now=now,
                                catalysts={w.ticker: True}, tickers=[w.ticker])
+            alert = alerts[0] if alerts else None
+            if alert is None:
+                continue
+            if settings.min_quality_score is not None and alert.quality_score < settings.min_quality_score:
+                continue
+            payload = _breakout_payload(alert)
+            store.mark_breakout(w.ticker, at=now.isoformat(), payload=payload)
+            text = format_confluence_alert(
+                ticker=w.ticker, stage="2of3", catalyst_text=w.catalyst_text,
+                catalyst_source=w.source, catalyst_ts=datetime.fromisoformat(w.news_ts),
+                breakout=payload, orderbook=None, now=now)
+            if _send(settings, chat_id, text, sender):
+                store.mark_stage_alerted(w.ticker, "2of3")
+                sent.append((w.ticker, "2of3"))
+                if not settings.confluence_require_orderbook:
+                    store.mark_stage_alerted(w.ticker, "3of3")   # 2/3 is terminal
         except Exception:  # noqa: BLE001 — one bad symbol never aborts the cycle
-            logger.warning("confluence breakout eval failed: %s", w.ticker, exc_info=True)
+            logger.warning("confluence breakout pass failed: %s", w.ticker, exc_info=True)
             continue
-        alert = alerts[0] if alerts else None
-        if alert is None:
-            continue
-        if settings.min_quality_score is not None and alert.quality_score < settings.min_quality_score:
-            continue
-        payload = _breakout_payload(alert)
-        store.mark_breakout(w.ticker, at=now.isoformat(), payload=payload)
-        text = format_confluence_alert(
-            ticker=w.ticker, stage="2of3", catalyst_text=w.catalyst_text,
-            catalyst_source=w.source, catalyst_ts=datetime.fromisoformat(w.news_ts),
-            breakout=payload, orderbook=None, now=now)
-        if _send(settings, chat_id, text, sender):
-            store.mark_stage_alerted(w.ticker, "2of3")
-            sent.append((w.ticker, "2of3"))
-            if not settings.confluence_require_orderbook:
-                store.mark_stage_alerted(w.ticker, "3of3")   # 2/3 is terminal
 
     # 4. Orderbook pass (market hours only) for watches at stage '2of3'.
     if settings.confluence_require_orderbook:
@@ -106,25 +106,25 @@ def run_confluence_cycle(
                 for w in watches:
                     try:
                         snap = orderbook_fetcher(w.ticker, auth, now=now)
-                    except Exception:  # noqa: BLE001
-                        logger.warning("confluence orderbook fetch failed: %s", w.ticker,
+                        if snap is None:
+                            continue
+                        result = classify_phase(snap, pcfg)
+                        if not result.is_ready_markup:
+                            continue
+                        ob = {"bid_lot": result.bid_lot, "offer_lot": result.offer_lot,
+                              "ratio": result.ratio}
+                        payload = json.loads(w.breakout_payload) if w.breakout_payload else {}
+                        text = format_confluence_alert(
+                            ticker=w.ticker, stage="3of3", catalyst_text=w.catalyst_text,
+                            catalyst_source=w.source,
+                            catalyst_ts=datetime.fromisoformat(w.news_ts),
+                            breakout=payload, orderbook=ob, now=now)
+                        if _send(settings, chat_id, text, sender):
+                            store.mark_orderbook(w.ticker, at=now.isoformat())
+                            store.mark_stage_alerted(w.ticker, "3of3")
+                            sent.append((w.ticker, "3of3"))
+                    except Exception:  # noqa: BLE001 — one bad symbol never aborts the cycle
+                        logger.warning("confluence orderbook pass failed: %s", w.ticker,
                                        exc_info=True)
                         continue
-                    if snap is None:
-                        continue
-                    result = classify_phase(snap, pcfg)
-                    if not result.is_ready_markup:
-                        continue
-                    ob = {"bid_lot": result.bid_lot, "offer_lot": result.offer_lot,
-                          "ratio": result.ratio}
-                    payload = json.loads(w.breakout_payload) if w.breakout_payload else {}
-                    text = format_confluence_alert(
-                        ticker=w.ticker, stage="3of3", catalyst_text=w.catalyst_text,
-                        catalyst_source=w.source,
-                        catalyst_ts=datetime.fromisoformat(w.news_ts),
-                        breakout=payload, orderbook=ob, now=now)
-                    if _send(settings, chat_id, text, sender):
-                        store.mark_orderbook(w.ticker, at=now.isoformat())
-                        store.mark_stage_alerted(w.ticker, "3of3")
-                        sent.append((w.ticker, "3of3"))
     return sent
