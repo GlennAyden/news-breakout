@@ -32,3 +32,12 @@ def test_three_of_three_has_ready_markup_and_orderbook_line():
     assert "ORDERBOOK ✅ READY MARKUP" in text
     assert "300.000/295.000" in text
     assert "0.98" in text
+
+
+def test_html_special_chars_in_catalyst_are_escaped():
+    text = format_confluence_alert(
+        ticker="BBRI", stage="2of3", catalyst_text="Laba naik & ekspansi <baru>",
+        catalyst_source="disclosure", catalyst_ts=CATALYST_TS, breakout=BREAKOUT,
+        orderbook=None, now=NOW)
+    assert "&amp;" in text and "&lt;baru&gt;" in text
+    assert "& ekspansi <baru>" not in text   # raw unescaped must not survive

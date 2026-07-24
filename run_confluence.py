@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -17,6 +18,7 @@ from news_breakout.orderbook.auth import StockbitAuth
 from news_breakout.scheduling.market_calendar import parse_holidays
 
 WIB = ZoneInfo("Asia/Jakarta")
+logger = logging.getLogger("news_breakout")
 
 
 def _collect_portal_items(settings, *, now):
@@ -56,6 +58,9 @@ def run_once(settings, *, now, store, auth=None) -> list[tuple[str, str]]:
             settings.stockbit_refresh_token or settings.stockbit_access_token):
         auth = StockbitAuth(settings.stockbit_refresh_token,
                             access_token=settings.stockbit_access_token)
+    if auth is None and settings.confluence_require_orderbook:
+        logger.warning("confluence: require_orderbook is set but no Stockbit auth/token available; "
+                       "3/3 orderbook confirmation disabled (watches will stall at 2/3)")
 
     return run_confluence_cycle(
         settings, store, now=now, holidays=parse_holidays(settings.holidays),
