@@ -81,6 +81,10 @@ class Settings(BaseModel):
     stockbit_refresh_token: str = ""
     stockbit_access_token: str = ""
     telegram_orderbook_chat_id: str = ""
+    confluence_enabled: bool = False
+    confluence_ttl_trading_days: int = 5
+    confluence_require_orderbook: bool = True
+    telegram_confluence_chat_id: str = ""
 
 
 def _load_env_file(env_path: str) -> None:
@@ -143,6 +147,7 @@ def load_settings(
     elliott = raw.get("elliott", {})
     daily_shift = raw.get("daily_shift", {})
     orderbook = raw.get("orderbook", {})
+    confluence = raw.get("confluence", {})
     ob_volume = orderbook.get("early_volume", {})
     ob_phase = orderbook.get("phase", {})
     return Settings(
@@ -220,6 +225,10 @@ def load_settings(
         stockbit_refresh_token=os.environ.get("STOCKBIT_REFRESH_TOKEN", "").strip(),
         stockbit_access_token=os.environ.get("STOCKBIT_ACCESS_TOKEN", "").strip(),
         telegram_orderbook_chat_id=os.environ.get("TELEGRAM_ORDERBOOK_CHAT_ID", "").strip(),
+        confluence_enabled=confluence.get("enabled", False),
+        confluence_ttl_trading_days=confluence.get("ttl_trading_days", 5),
+        confluence_require_orderbook=confluence.get("require_orderbook", True),
+        telegram_confluence_chat_id=os.environ.get("TELEGRAM_CONFLUENCE_CHAT_ID", "").strip(),
         supabase_url=_normalize_supabase_url(os.environ.get("SUPABASE_URL", "")),
         supabase_key=os.environ.get("SUPABASE_KEY", "").strip(),
         price_staleness_max_minutes=raw.get("monitoring", {}).get("price_staleness_max_minutes", 90),
